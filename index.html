@@ -5,6 +5,54 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>門市叫貨系統</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+/* xlsx 圖書館備援載入（jsdelivr 失效時改用 unpkg / cdnjs） */
+function ensureXLSX(onOk, onFail){
+  if(typeof XLSX!=='undefined'){ onOk(); return; }
+  const urls = [
+    'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+  ];
+  let i = 0;
+  (function tryNext(){
+    if(i>=urls.length){ onFail(); return; }
+    const s = document.createElement('script');
+    s.src = urls[i++];
+    s.onload = ()=>{ if(typeof XLSX!=='undefined') onOk(); else tryNext(); };
+    s.onerror = ()=>{ tryNext(); };
+    document.head.appendChild(s);
+  })();
+}
+/* 自訂下載（比 writeFile 更可靠，支援各種瀏覽器） */
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+}
+function saveXLSX(wb, filename){
+  const out = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  const blob = new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  downloadBlob(blob, filename);
+}
+/* xlsx 無法載入時的備援：匯出 CSV（可用 Excel 開啟） */
+function exportCSV(){
+  const keys = Object.keys(cart);
+  if(!keys.length){ alert('尚未勾選任何品項，無法匯出。'); return; }
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
+  const rows = [['門市','日期','品項編碼','品項名稱[規格]','數量']];
+  keys.forEach(c=>{ const it=cart[c]; rows.push([currentStore, dateStr, it.code, it.name, it.qty]); });
+  rows.push(['總品項數', keys.length]);
+  rows.push(['合計數量', keys.reduce((a,c)=>a+cart[c].qty,0)]);
+  const csv = rows.map(r=>r.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  downloadBlob(new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'}), `叫貨單-${currentStore}-${dateStr.replace(/\//g,'')}.csv`);
+  alert('Excel 圖書館載入失敗，已改為匯出 CSV 檔（可用 Excel 開啟）。請檢查網路連線後再試。');
+}
+</script>
 <style>
 :root{
   --ink:#23262f; --ink-2:#4a4f5e; --ink-3:#7a7f8d;
@@ -690,7 +738,7 @@ function renderCustomList(){
   }
 }
 function importExcel(file){
-  if(typeof XLSX==='undefined'){ alert('Excel 功能需連網載入，請確認網路連線後再試。'); return; }
+  if(typeof XLSX==='undefined'){ ensureXLSX(()=>{ importExcel(file); }, ()=>{ alert('Excel 圖書館載入失敗，請檢查網路連線後再試。'); }); return; }
   if(!file) return;
   const reader = new FileReader();
   reader.onload = e=>{
@@ -730,29 +778,29 @@ function resetItems(){
 
 /* ================= 匯出 Excel ================= */
 function exportExcel(){
-  if(typeof XLSX==='undefined'){ alert('Excel 功能需連網載入，請確認網路連線後再試。'); return; }
   const keys = Object.keys(cart);
   if(!keys.length){ alert('尚未勾選任何品項，無法匯出。'); return; }
-  const now = new Date();
-  const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
-  const week = ['日','一','二','三','四','五','六'][now.getDay()];
-  const aoa = [];
-  aoa.push(['門市叫貨單', '', '', '', '']);
-  aoa.push(['門市', currentStore, '', '', '']);
-  aoa.push(['日期', `${dateStr}（週${week}）`, '', '', '']);
-  aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
-  keys.forEach(c=>{ const it=cart[c]; aoa.push([currentStore, dateStr, it.code, it.name, it.qty]); });
-  aoa.push([]);
-  aoa.push(['總品項數', keys.length, '', '', '']);
-  aoa.push(['合計數量', keys.reduce((a,c)=>a+cart[c].qty,0), '', '', '']);
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}];
-  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}},{s:{r:2,c:0},e:{r:2,c:4}}];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, '叫貨單');
-  const d = new Date();
-  const ds = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
-  XLSX.writeFile(wb, `叫貨單-${currentStore}-${ds}.xlsx`);
+  ensureXLSX(()=>{
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
+    const week = ['日','一','二','三','四','五','六'][now.getDay()];
+    const aoa = [];
+    aoa.push(['門市叫貨單', '', '', '', '']);
+    aoa.push(['門市', currentStore, '', '', '']);
+    aoa.push(['日期', `${dateStr}（週${week}）`, '', '', '']);
+    aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
+    keys.forEach(c=>{ const it=cart[c]; aoa.push([currentStore, dateStr, it.code, it.name, it.qty]); });
+    aoa.push([]);
+    aoa.push(['總品項數', keys.length, '', '', '']);
+    aoa.push(['合計數量', keys.reduce((a,c)=>a+cart[c].qty,0), '', '', '']);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}];
+    ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}},{s:{r:2,c:0},e:{r:2,c:4}}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '叫貨單');
+    const ds = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+    saveXLSX(wb, `叫貨單-${currentStore}-${ds}.xlsx`);
+  }, ()=>{ exportCSV(); });
 }
 
 /* ================= 合併匯出 ================= */
@@ -770,47 +818,48 @@ function openMerge(){
 }
 function closeMerge(){ document.getElementById('mergeModal').classList.remove('open'); }
 function doMergeExport(){
-  if(typeof XLSX==='undefined'){ alert('Excel 功能需連網載入，請確認網路連線後再試。'); return; }
   const stores = [...document.querySelectorAll('#mergeList input:checked')].map(i=>i.dataset.store);
   if(!stores.length){ alert('請至少選擇一個門市。'); return; }
-  const now = new Date();
-  const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
-  const week = ['日','一','二','三','四','五','六'][now.getDay()];
-  const aoa = [];
-  aoa.push(['門市叫貨總表', '', '', '', '']);
-  aoa.push(['匯出日期', `${dateStr}（週${week}）`, '', '', '']);
-  aoa.push([]);
-  aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
-  let totalItems=0, totalQty=0;
-  const agg = {};
-  stores.forEach(s=>{
-    let cart={}; try{ cart = JSON.parse(localStorage.getItem(LS_CART+s)||'{}'); }catch(e){ cart={}; }
-    Object.keys(cart).forEach(c=>{
-      const it = cart[c];
-      aoa.push([s, dateStr, it.code, it.name, it.qty]);
-      totalItems++; totalQty += it.qty;
-      if(!agg[it.code]) agg[it.code] = {name: it.name, qty: 0};
-      agg[it.code].qty += it.qty;
+  ensureXLSX(()=>{
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
+    const week = ['日','一','二','三','四','五','六'][now.getDay()];
+    const aoa = [];
+    aoa.push(['門市叫貨總表', '', '', '', '']);
+    aoa.push(['匯出日期', `${dateStr}（週${week}）`, '', '', '']);
+    aoa.push([]);
+    aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
+    let totalItems=0, totalQty=0;
+    const agg = {};
+    stores.forEach(s=>{
+      let cart={}; try{ cart = JSON.parse(localStorage.getItem(LS_CART+s)||'{}'); }catch(e){ cart={}; }
+      Object.keys(cart).forEach(c=>{
+        const it = cart[c];
+        aoa.push([s, dateStr, it.code, it.name, it.qty]);
+        totalItems++; totalQty += it.qty;
+        if(!agg[it.code]) agg[it.code] = {name: it.name, qty: 0};
+        agg[it.code].qty += it.qty;
+      });
     });
-  });
-  aoa.push([]);
-  aoa.push(['品項合計（跨門市）', '', '', '', '']);
-  aoa.push(['品項編碼','品項名稱[規格]','合計數量','','']);
-  Object.keys(agg).forEach(code=>{
-    aoa.push([code, agg[code].name, agg[code].qty, '', '']);
-  });
-  aoa.push([]);
-  aoa.push(['總門市數', stores.length, '', '', '']);
-  aoa.push(['總品項數', totalItems, '', '', '']);
-  aoa.push(['總數量', totalQty, '', '', '']);
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}];
-  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}}];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, '合併總表');
-  const ds = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
-  XLSX.writeFile(wb, `門市叫貨總表-${ds}.xlsx`);
-  closeMerge();
+    aoa.push([]);
+    aoa.push(['品項合計（跨門市）', '', '', '', '']);
+    aoa.push(['品項編碼','品項名稱[規格]','合計數量','','']);
+    Object.keys(agg).forEach(code=>{
+      aoa.push([code, agg[code].name, agg[code].qty, '', '']);
+    });
+    aoa.push([]);
+    aoa.push(['總門市數', stores.length, '', '', '']);
+    aoa.push(['總品項數', totalItems, '', '', '']);
+    aoa.push(['總數量', totalQty, '', '', '']);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}];
+    ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '合併總表');
+    const ds = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+    saveXLSX(wb, `門市叫貨總表-${ds}.xlsx`);
+    closeMerge();
+  }, ()=>{ exportCSV(); });
 }
 
 /* ================= 啟動 ================= */
@@ -826,6 +875,7 @@ renderHome();
 show('screen-home');
 tickClock();
 setInterval(tickClock, 1000);
+ensureXLSX(()=>{}, ()=>{});
 /* 支援網址參數 ?store=門市名 直接帶入門市（方便分享） */
 (function(){
   try{
