@@ -350,6 +350,7 @@ function categorize(name){
   if(n.includes('青豆')) return '青豆';
   if(n.includes('果凍')) return '果凍';
   if(n.includes('營養餅')) return '營養餅';
+  if(/巧克力球|葡萄乾巧克力/.test(n)) return '巧克力球';
   return '其他';
 }
 function normalizeItems(){
