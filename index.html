@@ -380,6 +380,26 @@ input{font-family:inherit}
 .save-table{width:100%;border-collapse:collapse;font-size:13px}
 .save-table th{background:var(--paper);padding:7px 8px;text-align:left;position:sticky;top:0}
 .save-table td{padding:6px 8px;border-top:1px solid var(--line)}
+.hist-list{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.hist-card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px}
+.hist-card.done{border-color:var(--green-line);background:var(--green-soft)}
+.hist-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.hist-store{background:var(--ink);color:#fff;font-weight:700;font-size:13px;padding:3px 10px;border-radius:6px}
+.hist-date{font-size:12.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.hist-total{margin-left:auto;font-size:12.5px;color:var(--ink-2);font-weight:700}
+.hist-items{list-style:none;padding:0;margin:0 0 8px;max-height:170px;overflow-y:auto;border-top:1px dashed var(--line);padding-top:6px}
+.hist-items li{display:flex;gap:8px;font-size:13px;padding:2px 0}
+.hist-items .ic{font-size:11.5px;color:var(--ink-3);min-width:48px}
+.hist-items .in{flex:1;word-break:break-all}
+.hist-items .iq{font-weight:700;color:var(--ink-2);flex:none}
+.hist-foot{display:flex;align-items:center;justify-content:space-between;border-top:1px dashed var(--line);padding-top:8px}
+.hist-check{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:700;color:var(--ink);cursor:pointer}
+.hist-check input{display:none}
+.hist-check .hck{width:20px;height:20px;border-radius:6px;border:2px solid var(--line);background:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:transparent}
+.hist-check input:checked + .hck{background:var(--green);border-color:var(--green);color:#fff}
+.hist-check input:checked + .hck::after{content:'✓'}
+.hist-del{color:var(--red);font-size:12px;font-weight:700;padding:5px 10px;border:1px solid var(--red);border-radius:8px}
+.hist-del:hover{background:var(--red);color:#fff}
 </style>
 </head>
 <body>
@@ -447,6 +467,8 @@ input{font-family:inherit}
   <div class="rv-list" id="reviewList"></div>
   <div class="review-actions">
     <button class="btn btn-green" onclick="exportExcel()">⬇ 匯出品項 Excel 總表</button>
+    <button class="btn btn-primary" onclick="submitOrder()">📤 送出叫貨單</button>
+    <button class="btn btn-ghost" onclick="openHist()">📜 歷程記錄</button>
     <button class="btn btn-ghost" onclick="goHome()">回主頁</button>
     <button class="btn btn-ghost" onclick="clearCart()">清除叫貨</button>
   </div>
@@ -519,6 +541,19 @@ input{font-family:inherit}
     <button class="btn btn-ghost" style="width:100%" onclick="copyData()">📋 複製叫貨資料</button>
     <div class="save-preview" id="savePreview"></div>
     <button class="btn btn-ghost" style="width:100%;margin-top:10px" onclick="closeSave()">關閉</button>
+  </div>
+</div>
+
+<!-- 歷程記錄 Modal -->
+<div class="modal-back" id="histModal" onclick="if(event.target===this)closeHist()">
+  <div class="modal">
+    <h3>歷程記錄（叫貨歷史）</h3>
+    <div class="import-hint">查看各門市已叫貨的品項與日期，勾選「採購已處理」後按儲存。</div>
+    <div class="hist-list" id="histList"></div>
+    <div class="form-actions" style="margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeHist()">關閉</button>
+      <button class="btn btn-green" onclick="saveHistChecks()">💾 儲存</button>
+    </div>
   </div>
 </div>
 
@@ -796,6 +831,82 @@ function clearCart(){
   if(!Object.keys(cart).length) return;
   if(!confirm(`確定清除「${currentStore}」門市的叫貨清單？`)) return;
   cart={}; saveCart(); renderReview(); renderHome();
+}
+
+/* ================= 歷程記錄 ================= */
+const LS_HIST = "ims_history_v1";
+function loadHistory(){ try{ return JSON.parse(localStorage.getItem(LS_HIST)) || []; }catch(e){ return []; } }
+function saveHistory(h){ localStorage.setItem(LS_HIST, JSON.stringify(h)); }
+function submitOrder(){
+  const keys = Object.keys(cart);
+  if(!keys.length){ alert('目前沒有叫貨品項。'); return; }
+  if(!confirm(`確定送出「${currentStore}」門市的叫貨單？送出後會記錄到歷程。`)) return;
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
+  const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const items = keys.map(c=>({code:cart[c].code, name:cart[c].name, qty:cart[c].qty}));
+  const rec = {
+    id: Date.now(),
+    store: currentStore,
+    date: dateStr,
+    time: timeStr,
+    items: items,
+    totalItems: keys.length,
+    totalQty: keys.reduce((a,c)=>a+cart[c].qty,0),
+    processed: false
+  };
+  const h = loadHistory();
+  h.unshift(rec);
+  saveHistory(h);
+  const doClear = confirm(`✓ 已送出「${currentStore}」門市叫貨單（${rec.totalItems} 項／${rec.totalQty} 件）並記錄到歷程！\n\n要清除目前的叫貨清單，重新開始嗎？`);
+  if(doClear){ cart={}; saveCart(); renderHome(); show('screen-home'); }
+  else { renderReview(); }
+}
+function openHist(){
+  const h = loadHistory();
+  const list = document.getElementById('histList');
+  if(!h.length){
+    list.innerHTML = `<div class="empty">尚無歷程記錄。送出叫貨單後會自動記錄。</div>`;
+  } else {
+    list.innerHTML = h.map((r,idx)=>`
+      <div class="hist-card ${r.processed?'done':''}">
+        <div class="hist-head">
+          <span class="hist-store">${r.store}</span>
+          <span class="hist-date">${r.date} ${r.time}</span>
+          <span class="hist-total">${r.totalItems} 項 · ${r.totalQty} 件</span>
+        </div>
+        <ul class="hist-items">
+          ${r.items.map(it=>`<li><span class="ic">${it.code}</span><span class="in">${it.name}</span><span class="iq">×${it.qty}</span></li>`).join('')}
+        </ul>
+        <div class="hist-foot">
+          <label class="hist-check">
+            <input type="checkbox" data-idx="${idx}" ${r.processed?'checked':''}>
+            <span class="hck"></span> 採購已處理
+          </label>
+          <button class="hist-del" onclick="delHist(${idx})">刪除</button>
+        </div>
+      </div>`).join('');
+  }
+  document.getElementById('histModal').classList.add('open');
+}
+function closeHist(){ document.getElementById('histModal').classList.remove('open'); }
+function saveHistChecks(){
+  const h = loadHistory();
+  if(!h.length){ alert('沒有可儲存的記錄。'); return; }
+  document.querySelectorAll('#histList input[type=checkbox]').forEach(cb=>{
+    const idx = parseInt(cb.dataset.idx, 10);
+    if(h[idx]) h[idx].processed = cb.checked;
+  });
+  saveHistory(h);
+  alert('已儲存「採購已處理」狀態。');
+  openHist();
+}
+function delHist(idx){
+  if(!confirm('確定刪除這筆歷程記錄？')) return;
+  const h = loadHistory();
+  if(idx>=0 && idx<h.length) h.splice(idx, 1);
+  saveHistory(h);
+  openHist();
 }
 
 /* ================= 導覽 ================= */
