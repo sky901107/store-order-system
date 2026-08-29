@@ -550,7 +550,8 @@ input{font-family:inherit}
     <h3>歷程記錄（叫貨歷史）</h3>
     <div class="import-hint">查看各門市已叫貨的品項與日期，勾選「採購已處理」後按儲存。</div>
     <div class="hist-list" id="histList"></div>
-    <div class="form-actions" style="margin-top:16px">
+    <button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="exportHist()">⬇ 匯出歷程 Excel</button>
+    <div class="form-actions" style="margin-top:10px">
       <button class="btn btn-ghost" onclick="closeHist()">關閉</button>
       <button class="btn btn-green" onclick="saveHistChecks()">💾 儲存</button>
     </div>
@@ -907,6 +908,55 @@ function delHist(idx){
   if(idx>=0 && idx<h.length) h.splice(idx, 1);
   saveHistory(h);
   openHist();
+}
+function exportHist(){
+  const h = loadHistory();
+  if(!h.length){ alert('尚無歷程記錄可匯出。'); return; }
+  ensureXLSX(()=>{
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
+    const week = ['日','一','二','三','四','五','六'][now.getDay()];
+    const aoa = [];
+    aoa.push(['門市叫貨歷程總表', '', '', '', '', '']);
+    aoa.push(['匯出日期', `${dateStr}（週${week}）`, '', '', '', '']);
+    aoa.push([]);
+    aoa.push(['門市','叫貨日期','品項編碼','品項名稱[規格]','數量','採購已處理']);
+    let totalRec=0, totalItems=0, totalQty=0;
+    h.forEach(r=>{
+      const proc = r.processed ? '已處理' : '未處理';
+      r.items.forEach(it=>{
+        aoa.push([r.store, `${r.date} ${r.time}`, it.code, it.name, it.qty, proc]);
+        totalItems++; totalQty += it.qty;
+      });
+      totalRec++;
+    });
+    aoa.push([]);
+    aoa.push(['總記錄數', totalRec, '', '', '', '']);
+    aoa.push(['總品項數', totalItems, '', '', '', '']);
+    aoa.push(['總數量', totalQty, '', '', '', '']);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:8},{wch:18},{wch:14},{wch:48},{wch:8},{wch:12}];
+    ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:5}},{s:{r:1,c:0},e:{r:1,c:5}}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '叫貨歷程');
+    const ds = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+    saveXLSX(wb, `門市叫貨歷程-${ds}.xlsx`);
+  }, ()=>{ exportHistCSV(); });
+}
+function exportHistCSV(){
+  const h = loadHistory();
+  if(!h.length){ alert('尚無歷程記錄可匯出。'); return; }
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
+  const lines = ['門市,叫貨日期,品項編碼,品項名稱[規格],數量,採購已處理'];
+  h.forEach(r=>{
+    const proc = r.processed ? '已處理' : '未處理';
+    r.items.forEach(it=>{
+      lines.push([r.store, `${r.date} ${r.time}`, it.code, it.name, it.qty, proc].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+    });
+  });
+  const blob = new Blob(['\ufeff'+lines.join('\r\n')], {type:'text/csv;charset=utf-8'});
+  downloadBlob(blob, `門市叫貨歷程-${dateStr.replace(/\//g,'')}.csv`);
 }
 
 /* ================= 導覽 ================= */
