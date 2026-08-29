@@ -92,15 +92,7 @@ input{font-family:inherit}
 .searchbox input:focus{border-color:var(--red)}
 .searchbox .hint{font-size:12px;color:var(--ink-3);margin:6px 2px 0}
 .cats-wrap{position:sticky;top:134px;z-index:29;margin-bottom:6px}
-.cats{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;cursor:grab;scrollbar-width:thin;scrollbar-color:var(--gold) transparent}
-.cats::-webkit-scrollbar{height:6px}
-.cats::-webkit-scrollbar-track{background:transparent}
-.cats::-webkit-scrollbar-thumb{background:var(--gold);border-radius:3px}
-.cats.dragging{cursor:grabbing;user-select:none}
-.cat-fade{position:absolute;top:0;bottom:10px;width:28px;pointer-events:none;opacity:0;transition:opacity .2s}
-.cat-fade.left{left:0;background:linear-gradient(to right, var(--paper), transparent)}
-.cat-fade.right{right:0;background:linear-gradient(to left, var(--paper), transparent)}
-.cat-fade.show{opacity:1}
+.cats{display:flex;flex-wrap:wrap;gap:8px;padding:2px 2px 8px}
 .cat-chip{flex:none;padding:8px 14px;border-radius:20px;background:var(--card);border:1px solid var(--line);font-size:13.5px;font-weight:700;color:var(--ink-2);white-space:nowrap}
 .cat-chip:hover{border-color:var(--gold)}
 .cat-chip.active{background:var(--red);border-color:var(--red);color:#fff}
@@ -278,8 +270,6 @@ input{font-family:inherit}
   </div>
   <div class="cats-wrap">
     <div class="cats" id="catBar"></div>
-    <div class="cat-fade left" id="catFadeL"></div>
-    <div class="cat-fade right" id="catFadeR"></div>
   </div>
   <div class="item-list" id="itemList"></div>
 </div>
@@ -440,41 +430,6 @@ function selectStore(name){
 
 /* ================= 叫貨 ================= */
 function onSearch(v){ searchText=v; renderOrder(); }
-function updateCatFades(){
-  const el = document.getElementById('catBar');
-  const fl = document.getElementById('catFadeL');
-  const fr = document.getElementById('catFadeR');
-  if(!el || !fl || !fr) return;
-  fl.classList.toggle('show', el.scrollLeft > 4);
-  fr.classList.toggle('show', el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
-}
-function initCatBar(){
-  const el = document.getElementById('catBar');
-  if(!el || el.dataset.drag) return;
-  el.dataset.drag = '1';
-  let isDown=false, startX=0, startScroll=0, moved=false;
-  el.addEventListener('pointerdown', e=>{
-    if(e.pointerType !== 'mouse') return;
-    isDown=true; moved=false; startX=e.clientX; startScroll=el.scrollLeft;
-    el.classList.add('dragging');
-    try{ el.setPointerCapture(e.pointerId); }catch(err){}
-  });
-  el.addEventListener('pointermove', e=>{
-    if(!isDown) return;
-    const dx = e.clientX - startX;
-    if(Math.abs(dx) > 4) moved = true;
-    el.scrollLeft = startScroll - dx;
-  });
-  const end = ()=>{ isDown=false; el.classList.remove('dragging'); };
-  el.addEventListener('pointerup', end);
-  el.addEventListener('pointercancel', end);
-  el.addEventListener('click', e=>{
-    if(moved){ e.preventDefault(); e.stopPropagation(); moved=false; }
-  }, true);
-  el.addEventListener('scroll', updateCatFades);
-  window.addEventListener('resize', updateCatFades);
-  updateCatFades();
-}
 function renderCats(){
   const counts = {};
   items.forEach(it=>{ counts[it.category] = (counts[it.category]||0)+1; });
@@ -484,8 +439,6 @@ function renderCats(){
     const n = c==='全部' ? items.length : counts[c];
     return `<button class="cat-chip ${activeCat===c?'active':''}" onclick="setCat('${c}')">${c}<span class="cnt">${n}</span></button>`;
   }).join('');
-  initCatBar();
-  updateCatFades();
 }
 function setCat(c){ activeCat = c; renderOrder(); }
 function itemRowHTML(it){
