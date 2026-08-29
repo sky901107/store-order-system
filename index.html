@@ -32,8 +32,9 @@ input{font-family:inherit}
 }
 .brand{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:700;letter-spacing:.5px}
 .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:0 0 0 3px rgba(200,50,46,.35)}
-.appbar .ctx{font-size:13px;color:#cfc9b8}
-.appbar .ctx b{color:#fff;font-weight:700}
+.clock{text-align:right;line-height:1.3}
+.clock #clockDate{display:block;font-size:12px;color:#cfc9b8}
+.clock #clockTime{display:block;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;color:#fff}
 
 /* ===== Screens ===== */
 .screen{display:none;max-width:680px;margin:0 auto;padding:20px 16px 120px}
@@ -80,6 +81,15 @@ input{font-family:inherit}
 }
 .searchbox input:focus{border-color:var(--red)}
 .searchbox .hint{font-size:12px;color:var(--ink-3);margin:6px 2px 0}
+.cats{position:sticky;top:134px;z-index:29;display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin-bottom:6px;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.cat-chip{flex:none;padding:8px 14px;border-radius:20px;background:var(--card);border:1px solid var(--line);font-size:13.5px;font-weight:700;color:var(--ink-2);white-space:nowrap}
+.cat-chip:hover{border-color:var(--gold)}
+.cat-chip.active{background:var(--red);border-color:var(--red);color:#fff}
+.cat-chip .cnt{font-size:11px;opacity:.75;margin-left:3px}
+.cat-head{display:flex;align-items:center;gap:8px;margin:14px 2px 8px;padding-top:6px;border-top:1px dashed var(--line)}
+.cat-head .tag{background:var(--ink);color:#fff;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:6px;letter-spacing:1px}
+.cat-head .sub{font-size:12px;color:var(--ink-3)}
 .item-list{display:flex;flex-direction:column;gap:8px}
 .item-row{
   display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);
@@ -215,7 +225,10 @@ input{font-family:inherit}
 
 <div class="appbar">
   <div class="brand"><span class="dot"></span><span class="serif">門市叫貨系統</span></div>
-  <div class="ctx" id="appbarCtx"></div>
+  <div class="clock">
+    <span id="clockDate">--</span>
+    <span id="clockTime">--:--:--</span>
+  </div>
 </div>
 
 <!-- 主頁 -->
@@ -242,6 +255,7 @@ input{font-family:inherit}
     <input id="searchInput" type="search" placeholder="搜尋品項名稱或編號…" oninput="onSearch(this.value)">
     <div class="hint">可輸入品項名稱關鍵字或編號（如「小泡芙」或「35619」）</div>
   </div>
+  <div class="cats" id="catBar"></div>
   <div class="item-list" id="itemList"></div>
 </div>
 
@@ -316,11 +330,36 @@ const DEFAULT_ITEMS = [{"code": "35619", "name": "L-(二崙倉) 義美小泡芙 
 const STORES = ["虎尾","北港","嘉義","高雄","潭子","豐原","屏東"];
 const LS_ITEMS="ims_items_v1", LS_CUSTOM="ims_custom_v1", LS_CART="ims_cart_v1_", LS_CUR="ims_cur_v1";
 
-let items=[], customFlags={}, currentStore="", cart={}, searchText="";
+let items=[], customFlags={}, currentStore="", cart={}, searchText="", activeCat="全部";
+
+function categorize(name){
+  const n = name || '';
+  if(n.includes('小泡芙')) return '小泡芙';
+  if(n.includes('蛋捲')) return '蛋捲';
+  if(n.includes('夾心酥')) return '夾心酥';
+  if(n.includes('法蘭酥')) return '法蘭酥';
+  if(n.includes('薄餅')) return '薄餅';
+  if(n.includes('威化捲')) return '威化捲';
+  if(/軟糖|QQ糖|牛奶糖/.test(n)) return '軟糖/QQ糖';
+  if(n.includes('煎餅')) return '煎餅';
+  if(/蘇打|蘇打/.test(n)) return '蘇打餅';
+  if(n.includes('消化餅')) return '消化餅';
+  if(n.includes('養生')) return '養生餅';
+  if(n.includes('千層派')) return '千層派';
+  if(n.includes('巧克力酥片')) return '巧克力酥片';
+  if(n.includes('青豆')) return '青豆';
+  if(n.includes('果凍')) return '果凍';
+  if(n.includes('營養餅')) return '營養餅';
+  return '其他';
+}
+function normalizeItems(){
+  items.forEach(it=>{ if(!it.category) it.category = categorize(it.name); });
+}
 
 function loadState(){
   try{ items = JSON.parse(localStorage.getItem(LS_ITEMS)) || []; }catch(e){ items=[]; }
   if(!Array.isArray(items) || !items.length) items = DEFAULT_ITEMS.slice();
+  normalizeItems(); saveItems();
   try{ customFlags = JSON.parse(localStorage.getItem(LS_CUSTOM)) || {}; }catch(e){ customFlags={}; }
   currentStore = localStorage.getItem(LS_CUR) || "";
   loadCart();
@@ -337,7 +376,6 @@ function show(id){
   const isOrder = id==='screen-order';
   document.getElementById('actionbar').style.display = isOrder ? 'block' : 'none';
   document.getElementById('fabBtn').style.display = isOrder ? 'flex' : 'none';
-  document.getElementById('appbarCtx').innerHTML = currentStore ? `目前門市：<b>${currentStore}</b>` : '請選擇門市';
 }
 
 /* ================= 主頁 ================= */
@@ -363,27 +401,55 @@ function selectStore(name){
 
 /* ================= 叫貨 ================= */
 function onSearch(v){ searchText=v; renderOrder(); }
+function renderCats(){
+  const counts = {};
+  items.forEach(it=>{ counts[it.category] = (counts[it.category]||0)+1; });
+  const cats = Object.keys(counts).sort();
+  const bar = document.getElementById('catBar');
+  bar.innerHTML = ['全部'].concat(cats).map(c=>{
+    const n = c==='全部' ? items.length : counts[c];
+    return `<button class="cat-chip ${activeCat===c?'active':''}" onclick="setCat('${c}')">${c}<span class="cnt">${n}</span></button>`;
+  }).join('');
+}
+function setCat(c){ activeCat = c; renderOrder(); }
+function itemRowHTML(it){
+  const ck = cart[it.code];
+  return `<div class="item-row ${ck?'on':''}" role="button" tabindex="0"
+    onclick="toggleItem('${it.code}')"
+    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem('${it.code}')}">
+    <span class="checkmark">${ck?'✓':''}</span>
+    <span class="item-code">${it.code}</span>
+    <span class="item-name">${it.name}</span>
+    ${ck?`<span class="qty-mini" onclick="event.stopPropagation()">
+      <button onclick="qty('${it.code}',-1)">−</button><b>${ck.qty}</b><button onclick="qty('${it.code}',1)">+</button>
+    </span>`:''}
+  </div>`;
+}
 function renderOrder(){
   document.getElementById('orderStoreName').textContent = currentStore;
+  renderCats();
   const kw = searchText.trim().toLowerCase();
   const list = document.getElementById('itemList');
   let rows = items.filter(it => !kw || it.code.toLowerCase().includes(kw) || it.name.toLowerCase().includes(kw));
   if(!rows.length){
     list.innerHTML = `<div class="empty">${kw ? '找不到符合「'+searchText+'」的品項' : '目前沒有品項，請先匯入品項 Excel 或新增品項'}</div>`;
-  } else {
-    list.innerHTML = rows.map(it=>{
-      const ck = cart[it.code];
-      return `<div class="item-row ${ck?'on':''}" role="button" tabindex="0"
-        onclick="toggleItem('${it.code}')"
-        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem('${it.code}')}">
-        <span class="checkmark">${ck?'✓':''}</span>
-        <span class="item-code">${it.code}</span>
-        <span class="item-name">${it.name}</span>
-        ${ck?`<span class="qty-mini" onclick="event.stopPropagation()">
-          <button onclick="qty('${it.code}',-1)">−</button><b>${ck.qty}</b><button onclick="qty('${it.code}',1)">+</button>
-        </span>`:''}
-      </div>`;
+    updateBar(); return;
+  }
+  if(kw){
+    list.innerHTML = rows.map(itemRowHTML).join('');
+  } else if(activeCat === '全部'){
+    const byCat = {};
+    rows.forEach(it=>{ (byCat[it.category]=byCat[it.category]||[]).push(it); });
+    list.innerHTML = Object.keys(byCat).sort().map(c=>{
+      const checked = byCat[c].filter(it=>cart[it.code]).length;
+      return `<div class="cat-head">
+        <span class="tag">${c}</span>
+        <span class="sub">${byCat[c].length} 項${checked ? ` ・ 已勾選 ${checked}` : ''}</span>
+      </div>` + byCat[c].map(itemRowHTML).join('');
     }).join('');
+  } else {
+    rows = rows.filter(it=>it.category===activeCat);
+    list.innerHTML = rows.length ? rows.map(itemRowHTML).join('') : `<div class="empty">此分類尚無品項</div>`;
   }
   updateBar();
 }
@@ -459,7 +525,7 @@ function addItem(){
   const name = document.getElementById('newName').value.trim();
   if(!code || !name){ alert('請輸入品項編碼與名稱。'); return; }
   if(items.some(i=>i.code===code)){ alert('此品項編碼已存在。'); return; }
-  items.push({code:code, name:name});
+  items.push({code:code, name:name, category:categorize(name)});
   customFlags[code] = true;
   saveItems(); saveCustom();
   renderCustomList(); renderOrder();
@@ -503,7 +569,7 @@ function importExcel(file){
         const n = String(r[1]||'').trim();
         if(!n) continue;
         if(/品項|編碼|編號/.test(c) && /品項|名稱|規格/.test(n)) continue;
-        out.push({code:c, name:n});
+        out.push({code:c, name:n, category:categorize(n)});
       }
       if(!out.length){ alert('無法從檔案讀出品項，請確認格式（第一欄編碼、第二欄名稱）。'); return; }
       if(!confirm(`將以檔案內容取代目前品項清單（共 ${out.length} 項），確定？`)) return;
@@ -521,6 +587,7 @@ function importExcel(file){
 function resetItems(){
   if(!confirm('回復為內建預設品項清單？')) return;
   items = DEFAULT_ITEMS.slice(); customFlags = {};
+  normalizeItems();
   saveItems(); saveCustom();
   renderCustomList(); renderOrder();
   alert('已回復內建預製品項。');
@@ -531,9 +598,13 @@ function exportExcel(){
   if(typeof XLSX==='undefined'){ alert('Excel 功能需連網載入，請確認網路連線後再試。'); return; }
   const keys = Object.keys(cart);
   if(!keys.length){ alert('尚未勾選任何品項，無法匯出。'); return; }
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
+  const week = ['日','一','二','三','四','五','六'][now.getDay()];
   const aoa = [];
-  aoa.push(['門市叫貨單', currentStore, '']);
-  aoa.push(['匯出日期', new Date().toLocaleDateString('zh-TW'), '']);
+  aoa.push(['門市叫貨單', '', '']);
+  aoa.push(['門市', currentStore, '']);
+  aoa.push(['日期', `${dateStr}（週${week}）`, '']);
   aoa.push(['品項編碼','品項名稱[規格]','數量']);
   keys.forEach(c=>{ const it=cart[c]; aoa.push([it.code, it.name, it.qty]); });
   aoa.push([]);
@@ -550,9 +621,18 @@ function exportExcel(){
 }
 
 /* ================= 啟動 ================= */
+function pad(n){ return String(n).padStart(2,'0'); }
+function tickClock(){
+  const d = new Date();
+  const week = ['日','一','二','三','四','五','六'][d.getDay()];
+  document.getElementById('clockDate').textContent = `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} 週${week}`;
+  document.getElementById('clockTime').textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
 loadState();
 renderHome();
 show('screen-home');
+tickClock();
+setInterval(tickClock, 1000);
 /* 支援網址參數 ?store=門市名 直接帶入門市（方便分享） */
 (function(){
   try{
