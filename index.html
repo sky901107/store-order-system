@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>門市叫貨系統</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --ink:#23262f; --ink-2:#4a4f5e; --ink-3:#7a7f8d;
+  --paper:#f3eee1; --card:#fffdf7; --line:#e4dcc8;
+  --red:#c8322e; --red-d:#a32623; --red-soft:#f7e4e1;
+  --green:#3f7d52; --green-soft:#e7efe8; --green-line:#c9dccd;
+  --gold:#b98a4e; --shadow:0 12px 32px rgba(35,38,47,.12);
+  --radius:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC","Heiti TC",system-ui,sans-serif;
+  background:var(--paper); color:var(--ink); line-height:1.55;
+}
+.serif{font-family:"Noto Serif TC","Songti TC","PMingLiU",serif}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input{font-family:inherit}
+
+/* ===== App bar ===== */
+.appbar{
+  position:sticky;top:0;z-index:40;background:var(--ink);color:#f5f1e6;
+  padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  box-shadow:0 2px 0 rgba(0,0,0,.08);
+}
+.brand{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:700;letter-spacing:.5px}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:0 0 0 3px rgba(200,50,46,.35)}
+.appbar .ctx{font-size:13px;color:#cfc9b8}
+.appbar .ctx b{color:#fff;font-weight:700}
+
+/* ===== Screens ===== */
+.screen{display:none;max-width:680px;margin:0 auto;padding:20px 16px 120px}
+.screen.active{display:block}
+.screen.slim{padding-bottom:40px}
+
+/* ===== Home ===== */
+.hero{padding:26px 4px 22px}
+.hero .eyebrow{font-size:12px;letter-spacing:3px;color:var(--gold);font-weight:700}
+.hero h1{font-size:34px;line-height:1.2;margin:8px 0 6px;letter-spacing:1px}
+.hero p{color:var(--ink-2);font-size:15px}
+.store-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:8px}
+@media(min-width:560px){.store-grid{grid-template-columns:repeat(3,1fr)}}
+.store-card{
+  position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:18px 16px 14px;text-align:left;transition:transform .15s ease,box-shadow .15s ease;
+  box-shadow:0 2px 6px rgba(35,38,47,.05);overflow:hidden;
+}
+.store-card:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+.store-card:active{transform:scale(.97)}
+.store-num{
+  position:absolute;top:0;right:0;background:var(--red);color:#fff;font-size:11px;font-weight:700;
+  padding:3px 10px;border-radius:0 var(--radius) 0 10px;letter-spacing:1px;
+}
+.store-name{display:block;font-size:26px;font-weight:700;margin:6px 0 10px;letter-spacing:2px}
+.store-status{display:inline-block;font-size:12px;padding:3px 10px;border-radius:20px}
+.st-new{background:var(--paper);color:var(--ink-3)}
+.st-ok{background:var(--green-soft);color:var(--green);font-weight:700}
+.home-foot{margin-top:26px;text-align:center;color:var(--ink-3);font-size:12px}
+.link-btn{color:var(--red);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+
+/* ===== Order ===== */
+.subbar{display:flex;align-items:center;gap:10px;margin:2px 0 14px}
+.subbar .back{
+  display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink-2);
+  padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-weight:600;
+}
+.subbar .back:hover{color:var(--red);border-color:var(--red)}
+.subbar h2{font-size:22px;font-weight:700;flex:1;letter-spacing:1px}
+.searchbox{position:sticky;top:58px;z-index:30;margin-bottom:14px}
+.searchbox input{
+  width:100%;padding:13px 16px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);
+  font-size:15px;outline:none;transition:border-color .15s;
+}
+.searchbox input:focus{border-color:var(--red)}
+.searchbox .hint{font-size:12px;color:var(--ink-3);margin:6px 2px 0}
+.item-list{display:flex;flex-direction:column;gap:8px}
+.item-row{
+  display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:11px 12px;cursor:pointer;transition:all .15s;user-select:none;
+}
+.item-row:hover{border-color:var(--gold)}
+.item-row.on{background:var(--green-soft);border-color:var(--green-line)}
+.checkmark{
+  width:24px;height:24px;border-radius:7px;border:2px solid var(--line);background:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:#fff;
+  flex:none;transition:all .15s;
+}
+.item-row.on .checkmark{background:var(--green);border-color:var(--green)}
+.item-code{font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums;flex:none;min-width:52px}
+.item-name{font-size:14.5px;flex:1}
+.qty-mini{display:flex;align-items:center;gap:2px;flex:none}
+.qty-mini button{
+  width:26px;height:26px;border-radius:7px;background:var(--card);border:1px solid var(--line);
+  font-size:15px;font-weight:700;color:var(--ink);line-height:1;
+}
+.qty-mini button:active{background:var(--red);color:#fff;border-color:var(--red)}
+.qty-mini b{min-width:26px;text-align:center;font-size:15px}
+.empty{text-align:center;color:var(--ink-3);padding:44px 0;font-size:14px}
+
+/* Sticky action bar */
+.actionbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:35;background:rgba(255,253,247,.92);
+  backdrop-filter:blur(8px);border-top:1px solid var(--line);
+}
+.actionbar .inner{max-width:680px;margin:0 auto;padding:12px 16px calc(12px + env(safe-area-inset-bottom));display:flex;align-items:center;gap:12px}
+.actionbar .count{font-size:14px;color:var(--ink-2);flex:1}
+.actionbar .count b{color:var(--red);font-size:18px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:12px 20px;border-radius:12px;font-size:15px;font-weight:700;transition:all .15s;
+}
+.btn-primary{background:var(--red);color:#fff}
+.btn-primary:hover{background:var(--red-d)}
+.btn-primary:active{transform:scale(.97)}
+.btn-ghost{background:var(--card);border:1px solid var(--line);color:var(--ink-2)}
+.btn-ghost:hover{border-color:var(--red);color:var(--red)}
+.btn-green{background:var(--green);color:#fff}
+.btn-green:hover{filter:brightness(.95)}
+
+/* Floating add button */
+.fab{
+  position:fixed;right:20px;bottom:86px;z-index:36;width:56px;height:56px;border-radius:50%;
+  background:var(--ink);color:#fff;font-size:24px;font-weight:700;box-shadow:var(--shadow);
+  display:flex;align-items:center;justify-content:center;transition:transform .15s;
+}
+.fab:hover{transform:scale(1.08)}
+.fab:active{transform:scale(.94)}
+
+/* ===== Review ===== */
+.summary{
+  display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:4px 0 16px;
+}
+.sum-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;text-align:center}
+.sum-card .v{font-size:30px;font-weight:800;color:var(--red);font-variant-numeric:tabular-nums}
+.sum-card .l{font-size:12.5px;color:var(--ink-3);margin-top:2px}
+.rv-list{display:flex;flex-direction:column;gap:8px}
+.rv-row{
+  display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:10px 12px;
+}
+.rv-info{flex:1;min-width:0}
+.rv-info .item-name{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qty-stepper{display:flex;align-items:center;gap:2px;flex:none}
+.qty-stepper button{
+  width:30px;height:30px;border-radius:8px;background:var(--paper);border:1px solid var(--line);
+  font-size:17px;font-weight:700;line-height:1;
+}
+.qty-stepper button:active{background:var(--red);color:#fff;border-color:var(--red)}
+.qty-stepper b{min-width:30px;text-align:center;font-size:16px}
+.review-actions{display:flex;flex-direction:column;gap:10px;margin-top:20px}
+.review-actions .btn{width:100%;padding:14px;font-size:16px}
+
+/* ===== Modal ===== */
+.modal-back{
+  position:fixed;inset:0;z-index:60;background:rgba(35,38,47,.5);display:none;
+  align-items:flex-end;justify-content:center;
+}
+.modal-back.open{display:flex}
+.modal{
+  background:var(--card);width:100%;max-width:680px;max-height:88vh;overflow-y:auto;
+  border-radius:20px 20px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
+  animation:slideup .22s ease;
+}
+@keyframes slideup{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
+.modal h3{font-size:20px;font-weight:700;margin-bottom:14px;letter-spacing:.5px}
+.tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--line)}
+.tab{
+  padding:9px 14px;font-size:14px;font-weight:700;color:var(--ink-3);border-radius:10px 10px 0 0;
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+}
+.tab.active{color:var(--red);border-bottom-color:var(--red)}
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:13px;font-weight:700;color:var(--ink-2);margin-bottom:6px}
+.field input{
+  width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;outline:none;
+}
+.field input:focus{border-color:var(--red)}
+.form-actions{display:flex;gap:10px;margin-top:4px}
+.form-actions .btn{flex:1}
+.custom-list{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.custom-row{
+  display:flex;align-items:center;gap:10px;background:var(--paper);border:1px solid var(--line);
+  border-radius:10px;padding:9px 12px;
+}
+.custom-row .info{flex:1;min-width:0}
+.custom-row .info .c{font-size:11.5px;color:var(--ink-3)}
+.custom-row .info .n{font-size:14px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.del-btn{color:var(--red);font-size:12.5px;font-weight:700;padding:6px 10px;border:1px solid var(--red);border-radius:8px}
+.del-btn:hover{background:var(--red);color:#fff}
+.import-hint{font-size:12.5px;color:var(--ink-3);margin:8px 0 12px}
+.import-box{
+  border:1.5px dashed var(--line);border-radius:12px;padding:22px 16px;text-align:center;margin-bottom:12px;
+}
+.import-box .t{font-size:14px;font-weight:700;margin-bottom:4px}
+.import-box .s{font-size:12px;color:var(--ink-3);margin-bottom:12px}
+.file-label{
+  display:inline-block;background:var(--red);color:#fff;padding:10px 18px;border-radius:10px;
+  font-size:14px;font-weight:700;
+}
+.file-label:hover{background:var(--red-d)}
+#fileInput{display:none}
+.imported-count{font-size:13px;color:var(--green);font-weight:700;margin-top:8px}
+</style>
+</head>
+<body>
+
+<div class="appbar">
+  <div class="brand"><span class="dot"></span><span class="serif">門市叫貨系統</span></div>
+  <div class="ctx" id="appbarCtx"></div>
+</div>
+
+<!-- 主頁 -->
+<div id="screen-home" class="screen slim">
+  <div class="hero">
+    <div class="eyebrow">RETAIL ORDERING</div>
+    <h1 class="serif">門市叫貨</h1>
+    <p>請選擇您的門市，開始勾選叫貨品項。</p>
+  </div>
+  <div class="store-grid" id="storeGrid"></div>
+  <div class="home-foot">
+    品項清單可隨時更新：<button class="link-btn" onclick="openManage()">品項管理（新增／匯入Excel）</button><br>
+    資料儲存在目前瀏覽器，換裝置不會同步。
+  </div>
+</div>
+
+<!-- 叫貨 -->
+<div id="screen-order" class="screen">
+  <div class="subbar">
+    <button class="back" onclick="goHome()">← 回主頁</button>
+    <h2 id="orderStoreName" class="serif"></h2>
+  </div>
+  <div class="searchbox">
+    <input id="searchInput" type="search" placeholder="搜尋品項名稱或編號…" oninput="onSearch(this.value)">
+    <div class="hint">可輸入品項名稱關鍵字或編號（如「小泡芙」或「35619」）</div>
+  </div>
+  <div class="item-list" id="itemList"></div>
+</div>
+
+<!-- 確認 -->
+<div id="screen-review" class="screen">
+  <div class="subbar">
+    <button class="back" onclick="goOrder()">← 回叫貨</button>
+    <h2 id="reviewStoreName" class="serif"></h2>
+    <button class="back" onclick="goHome()">回主頁</button>
+  </div>
+  <div class="summary">
+    <div class="sum-card"><div class="v" id="sumItems">0</div><div class="l">總品項數</div></div>
+    <div class="sum-card"><div class="v" id="sumQty">0</div><div class="l">總數量</div></div>
+  </div>
+  <div class="rv-list" id="reviewList"></div>
+  <div class="review-actions">
+    <button class="btn btn-green" onclick="exportExcel()">⬇ 匯出品項 Excel 總表</button>
+    <button class="btn btn-ghost" onclick="goHome()">回主頁</button>
+    <button class="btn btn-ghost" onclick="clearCart()">清除叫貨</button>
+  </div>
+</div>
+
+<!-- 品項管理 Modal -->
+<div class="modal-back" id="manageModal" onclick="if(event.target===this)closeManage()">
+  <div class="modal">
+    <h3>品項管理</h3>
+    <div class="tabs">
+      <button class="tab active" data-tab="tab-add" onclick="switchTab(this)">新增品項</button>
+      <button class="tab" data-tab="tab-import" onclick="switchTab(this)">匯入品項Excel</button>
+      <button class="tab" data-tab="tab-custom" onclick="switchTab(this)">自訂品項</button>
+    </div>
+
+    <div class="tab-pane active" id="tab-add">
+      <div class="field"><label>品項編碼</label><input id="newCode" placeholder="例如 35619"></div>
+      <div class="field"><label>品項名稱［規格］</label><input id="newName" placeholder="例如 義美小泡芙 巧克力57G/包"></div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="addItem()">＋ 新增品項</button>
+      </div>
+    </div>
+
+    <div class="tab-pane" id="tab-import">
+      <div class="import-hint">上傳您的品項 Excel（第一欄＝品項編碼，第二欄＝品項名稱），匯入後會<strong>取代</strong>目前的品項清單。</div>
+      <div class="import-box">
+        <div class="t">選擇品項 Excel 檔案</div>
+        <div class="s">支援 .xlsx / .xls / .csv</div>
+        <label class="file-label" for="fileInput">選擇檔案</label>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" onchange="importExcel(this.files[0])">
+        <div class="imported-count" id="importMsg"></div>
+      </div>
+      <button class="btn btn-ghost" style="width:100%" onclick="resetItems()">回復內建預製品項</button>
+    </div>
+
+    <div class="tab-pane" id="tab-custom">
+      <div class="import-hint">以下為您手動新增的品項，可隨時刪除。</div>
+      <div class="custom-list" id="customList"></div>
+    </div>
+  </div>
+</div>
+
+<button class="fab" id="fabBtn" onclick="openManage()" style="display:none" title="增加品項">＋</button>
+<div class="actionbar" id="actionbar" style="display:none">
+  <div class="inner">
+    <div class="count">已勾選 <b id="barCount">0</b> 項</div>
+    <button class="btn btn-primary" onclick="goReview()">確認叫貨 →</button>
+  </div>
+</div>
+
+<script>
+/* ================= 內建品項（由上傳 Excel 匯入） ================= */
+const DEFAULT_ITEMS = [{"code": "35619", "name": "L-(二崙倉) 義美小泡芙 巧克力57G/包", "short": "義美小泡芙 巧克力57G/包"}, {"code": "35620", "name": "L-(二崙倉) 義美小泡芙 草莓57g/包", "short": "義美小泡芙 草莓57g/包"}, {"code": "35621", "name": "L-(二崙倉) 義美 小泡芙57G/包 牛奶 黃", "short": "義美 小泡芙57G/包 牛奶 黃"}, {"code": "35623", "name": "L-(二崙倉) 義美小泡芙 厚奶茶57g/包", "short": "義美小泡芙 厚奶茶57g/包"}, {"code": "35624", "name": "L-(二崙倉) 義美小泡芙 香焙咖啡57g/包", "short": "義美小泡芙 香焙咖啡57g/包"}, {"code": "35625", "name": "L-(二崙倉) 義美小泡芙 藍莓果香57g/包", "short": "義美小泡芙 藍莓果香57g/包"}, {"code": "35630", "name": "L-(二崙倉) 義美小泡芙歡樂包 特濃巧克力196g/袋", "short": "義美小泡芙歡樂包 特濃巧克力196g/袋"}, {"code": "35631", "name": "L-(二崙倉) 義美小泡芙歡樂包 香濃牛奶196g/袋", "short": "義美小泡芙歡樂包 香濃牛奶196g/袋"}, {"code": "35632", "name": "L-(二崙倉) 義美小泡芙歡樂包 甜心草莓196g/袋", "short": "義美小泡芙歡樂包 甜心草莓196g/袋"}, {"code": "35633", "name": "L-(二崙倉) 義美 蛋捲60G/盒 芝麻 橘", "short": "義美 蛋捲60G/盒 芝麻 橘"}, {"code": "35634", "name": "L-(二崙倉) 義美 蛋捲60G/盒 原味 紅", "short": "義美 蛋捲60G/盒 原味 紅"}, {"code": "35635", "name": "L-(二崙倉) 義美 小蛋捲114G/盒 芝麻 橘", "short": "義美 小蛋捲114G/盒 芝麻 橘"}, {"code": "35636", "name": "L-(二崙倉) 義美 小蛋捲114G/盒 原味 紅", "short": "義美 小蛋捲114G/盒 原味 紅"}, {"code": "35637", "name": "L-(二崙倉) 義美 厚濃蛋捲152G/盒 香濃花生 橘", "short": "義美 厚濃蛋捲152G/盒 香濃花生 橘"}, {"code": "35638", "name": "L-(二崙倉) 義美 厚濃蛋捲152G/盒 鹹香海苔 綠", "short": "義美 厚濃蛋捲152G/盒 鹹香海苔 綠"}, {"code": "35639", "name": "L-(二崙倉) 義美夾心酥(隨手盒) 檸檬75g/盒", "short": "義美夾心酥(隨手盒) 檸檬75g/盒"}, {"code": "35640", "name": "L-(二崙倉) 義美夾心酥(隨手盒) 草莓75g/盒", "short": "義美夾心酥(隨手盒) 草莓75g/盒"}, {"code": "35641", "name": "L-(二崙倉) 義美 夾心酥152G/包 檸檬 綠", "short": "義美 夾心酥152G/包 檸檬 綠"}, {"code": "35642", "name": "L-(二崙倉) 義美 夾心酥152G/包 花生 黃", "short": "義美 夾心酥152G/包 花生 黃"}, {"code": "35643", "name": "L-(二崙倉) 義美 夾心酥152G/包 草莓 粉", "short": "義美 夾心酥152G/包 草莓 粉"}, {"code": "35644", "name": "L-(二崙倉) 義美 夾心酥152G/包 巧克力 咖", "short": "義美 夾心酥152G/包 巧克力 咖"}, {"code": "35645", "name": "L-(二崙倉) 義美 夾心酥152G/包 椰奶 紅", "short": "義美 夾心酥152G/包 椰奶 紅"}, {"code": "35646", "name": "L-(二崙倉) 義美 夾心酥152G/包 牛奶 藍", "short": "義美 夾心酥152G/包 牛奶 藍"}, {"code": "35647", "name": "L-(二崙倉) 義美 夾心酥400G/袋 香濃花生 淺橘", "short": "義美 夾心酥400G/袋 香濃花生 淺橘"}, {"code": "35648", "name": "L-(二崙倉) 義美 夾心酥400G/袋 清新檸檬 綠", "short": "義美 夾心酥400G/袋 清新檸檬 綠"}, {"code": "35649", "name": "L-(二崙倉) 義美 夾心酥400G/袋 草莓 粉", "short": "義美 夾心酥400G/袋 草莓 粉"}, {"code": "35650", "name": "L-(二崙倉) 義美 夾心酥400G/袋 巧克力 紅", "short": "義美 夾心酥400G/袋 巧克力 紅"}, {"code": "35651", "name": "L-(二崙倉) 義美 夾心酥400G/袋 牛奶 藍", "short": "義美 夾心酥400G/袋 牛奶 藍"}, {"code": "35652", "name": "L-(二崙倉) 義美 夾心酥400G/袋 椰奶 深橘", "short": "義美 夾心酥400G/袋 椰奶 深橘"}, {"code": "35653", "name": "L-(二崙倉) 義美 夾心酥400G/袋 黑可可 深紫", "short": "義美 夾心酥400G/袋 黑可可 深紫"}, {"code": "35654", "name": "L-(二崙倉) 義美 夾心酥400G/袋 藍莓 淺紫", "short": "義美 夾心酥400G/袋 藍莓 淺紫"}, {"code": "35655", "name": "L-(二崙倉) 義美 夾心酥400G/袋 黑芝麻可可 灰", "short": "義美 夾心酥400G/袋 黑芝麻可可 灰"}, {"code": "35660", "name": "L-(二崙倉) 義美 法蘭酥132G/盒 牛奶 藍", "short": "義美 法蘭酥132G/盒 牛奶 藍"}, {"code": "35661", "name": "L-(二崙倉) 義美 法蘭酥132G/盒 草莓 粉", "short": "義美 法蘭酥132G/盒 草莓 粉"}, {"code": "35662", "name": "L-(二崙倉) 義美 法蘭酥132G/盒 巧克力 紅", "short": "義美 法蘭酥132G/盒 巧克力 紅"}, {"code": "35663", "name": "L-(二崙倉) 義美 薄餅120G/盒 牛奶 藍", "short": "義美 薄餅120G/盒 牛奶 藍"}, {"code": "35664", "name": "L-(二崙倉) 義美 薄餅120G/盒 紅麴 紅", "short": "義美 薄餅120G/盒 紅麴 紅"}, {"code": "35665", "name": "L-(二崙倉) 義美 薄餅120G/盒 檸檬 綠", "short": "義美 薄餅120G/盒 檸檬 綠"}, {"code": "35666", "name": "L-(二崙倉) 義美 薄餅120G/盒 黑芝麻 灰", "short": "義美 薄餅120G/盒 黑芝麻 灰"}, {"code": "35667", "name": "L-(二崙倉) 義美 美味薄餅夾心144G/盒 草莓 紅", "short": "義美 美味薄餅夾心144G/盒 草莓 紅"}, {"code": "35668", "name": "L-(二崙倉) 義美 美味薄餅夾心144G/盒 檸檬 綠", "short": "義美 美味薄餅夾心144G/盒 檸檬 綠"}, {"code": "35669", "name": "L-(二崙倉) 義美 威化捲72G/盒 巧克力 紅", "short": "義美 威化捲72G/盒 巧克力 紅"}, {"code": "35670", "name": "L-(二崙倉) 義美 威化捲72G/盒 香草牛奶 藍", "short": "義美 威化捲72G/盒 香草牛奶 藍"}, {"code": "35671", "name": "L-(二崙倉) 義美 知心Q軟糖94.5G/包 草莓 紅白", "short": "義美 知心Q軟糖94.5G/包 草莓 紅白"}, {"code": "35672", "name": "L-(二崙倉) 義美 知心Q軟糖94.5G/包 經典水果 橘", "short": "義美 知心Q軟糖94.5G/包 經典水果 橘"}, {"code": "35673", "name": "L-(二崙倉) 義美 知心Q軟糖94.5G/包 繽紛水果 綠", "short": "義美 知心Q軟糖94.5G/包 繽紛水果 綠"}, {"code": "35674", "name": "L-(二崙倉) 義美 知心Q軟糖94.5G/包 乳酸多多 紅膚", "short": "義美 知心Q軟糖94.5G/包 乳酸多多 紅膚"}, {"code": "35675", "name": "L-(二崙倉) 義美 葡萄QQ糖巧克球50G/包 盒", "short": "義美 葡萄QQ糖巧克球50G/包 盒"}, {"code": "35676", "name": "L-(二崙倉) 義美 草莓QQ糖巧克球50G/盒 紅", "short": "義美 草莓QQ糖巧克球50G/盒 紅"}, {"code": "35677", "name": "L-(二崙倉) 義美 草莓QQ糖白巧克球50G/盒 粉", "short": "義美 草莓QQ糖白巧克球50G/盒 粉"}, {"code": "35678", "name": "L-(二崙倉) 義美 超大葡萄乾巧克力50G/盒 白", "short": "義美 超大葡萄乾巧克力50G/盒 白"}, {"code": "35679", "name": "L-(二崙倉) 義美 白葡萄QQ糖巧克球50G/盒 藍", "short": "義美 白葡萄QQ糖巧克球50G/盒 藍"}, {"code": "35680", "name": "L-(二崙倉) 義美 杏仁巧克力球47G/盒 綠", "short": "義美 杏仁巧克力球47G/盒 綠"}, {"code": "35681", "name": "L-(二崙倉) 義美 黑可可杏仁巧克力球47G/盒 紅", "short": "義美 黑可可杏仁巧克力球47G/盒 紅"}, {"code": "36296", "name": "L-(二崙倉) 義美小蛋捲 隨手盒 原味38g/盒", "short": "義美小蛋捲 隨手盒 原味38g/盒"}, {"code": "36297", "name": "L-(二崙倉) 義美 煎餅100G/包 花生 橘", "short": "義美 煎餅100G/包 花生 橘"}, {"code": "36298", "name": "L-(二崙倉) 義美 煎餅96G/包 海苔 綠", "short": "義美 煎餅96G/包 海苔 綠"}, {"code": "36299", "name": "L-(二崙倉) 義美 雙果仁煎餅100G/包 杏仁南瓜子 紅", "short": "義美 雙果仁煎餅100G/包 杏仁南瓜子 紅"}, {"code": "36300", "name": "L-(二崙倉) 義美 雙果仁煎餅100G/包 花生杏仁 橘", "short": "義美 雙果仁煎餅100G/包 花生杏仁 橘"}, {"code": "36301", "name": "L-(二崙倉) 義美 取向蘇打餅乾180G/盒 起司 紅", "short": "義美 取向蘇打餅乾180G/盒 起司 紅"}, {"code": "36302", "name": "L-(二崙倉) 義美 取向蘇打餅乾205G/盒 純麥 橘", "short": "義美 取向蘇打餅乾205G/盒 純麥 橘"}, {"code": "36303", "name": "L-(二崙倉) 義美 美味蘇打餅192G/盒 原味 橘", "short": "義美 美味蘇打餅192G/盒 原味 橘"}, {"code": "36305", "name": "L-(二崙倉) 義美 美味蘇打餅192G/盒 鮮蔥 綠", "short": "義美 美味蘇打餅192G/盒 鮮蔥 綠"}, {"code": "36306", "name": "L-(二崙倉) 義美 美味蘇打餅192G/盒 紫菜 紅", "short": "義美 美味蘇打餅192G/盒 紫菜 紅"}, {"code": "36307", "name": "L-(二崙倉) 義美 美味營養餅乾205G/盒 藍", "short": "義美 美味營養餅乾205G/盒 藍"}, {"code": "36308", "name": "L-(二崙倉) 義美 美味蘇打餅192G/盒 芝麻燕麥 紫", "short": "義美 美味蘇打餅192G/盒 芝麻燕麥 紫"}, {"code": "36309", "name": "L-(二崙倉) 義美 美味營養餅夾心154G/盒 檸檬 綠", "short": "義美 美味營養餅夾心154G/盒 檸檬 綠"}, {"code": "36310", "name": "L-(二崙倉) 義美 美味營養餅夾心154G/盒 花生 橘", "short": "義美 美味營養餅夾心154G/盒 花生 橘"}, {"code": "36311", "name": "L-(二崙倉) 義美 天然取向蘇打餅乾120G/盒 鮮蔥 綠", "short": "義美 天然取向蘇打餅乾120G/盒 鮮蔥 綠"}, {"code": "36312", "name": "L-(二崙倉) 義美 天然取向蘇打餅乾120G/盒 紫菜 橘", "short": "義美 天然取向蘇打餅乾120G/盒 紫菜 橘"}, {"code": "36314", "name": "L-(二崙倉) 義美 天然取向蘇打餅乾225G/袋 鮮蔥 綠", "short": "義美 天然取向蘇打餅乾225G/袋 鮮蔥 綠"}, {"code": "36315", "name": "L-(二崙倉) 義美 天然取向蘇打餅乾225G/袋 紫菜 橘", "short": "義美 天然取向蘇打餅乾225G/袋 紫菜 橘"}, {"code": "36316", "name": "L-(二崙倉) 義美 蘇打餅夾心144G/盒 檸檬 綠", "short": "義美 蘇打餅夾心144G/盒 檸檬 綠"}, {"code": "36317", "name": "L-(二崙倉) 義美 蘇打餅夾心144G/盒 起司 紅", "short": "義美 蘇打餅夾心144G/盒 起司 紅"}, {"code": "36318", "name": "L-(二崙倉) 義美 消化餅180G/盒 原味", "short": "義美 消化餅180G/盒 原味"}, {"code": "36319", "name": "L-(二崙倉) 義美 消化餅156G/盒 巧克力", "short": "義美 消化餅156G/盒 巧克力"}, {"code": "36320", "name": "L-(二崙倉) 義美 消化餅156G/盒 黑可可", "short": "義美 消化餅156G/盒 黑可可"}, {"code": "36321", "name": "L-(二崙倉) 義美 每日十榖養生餅171G/盒 杏仁蕎麥 橘 (蛋奶素)", "short": "義美 每日十榖養生餅171G/盒 杏仁蕎麥 橘 (蛋奶素)"}, {"code": "36322", "name": "L-(二崙倉) 義美 每日十榖養生餅171G/盒 燕麥芝麻 紅 (蛋奶素)", "short": "義美 每日十榖養生餅171G/盒 燕麥芝麻 紅 (蛋奶素)"}, {"code": "36323", "name": "L-(二崙倉) 義美 千層派80G/盒 杏仁 綠", "short": "義美 千層派80G/盒 杏仁 綠"}, {"code": "36324", "name": "L-(二崙倉) 義美 千層派96G/盒 葡萄蜂蜜 橘", "short": "義美 千層派96G/盒 葡萄蜂蜜 橘"}, {"code": "36325", "name": "L-(二崙倉) 義美 千層派98G/盒 白巧克力 粉", "short": "義美 千層派98G/盒 白巧克力 粉"}, {"code": "36326", "name": "L-(二崙倉) 義美 杏仁巧克力酥片70G/盒 牛奶巧克力", "short": "義美 杏仁巧克力酥片70G/盒 牛奶巧克力"}, {"code": "36327", "name": "L-(二崙倉) 義美榛果巧克力酥片 黑可可70g/盒", "short": "義美榛果巧克力酥片 黑可可70g/盒"}, {"code": "36328", "name": "L-(二崙倉) 義美 青豆178G/包 芥末 綠", "short": "義美 青豆178G/包 芥末 綠"}, {"code": "36329", "name": "L-(二崙倉) 義美 青豆178G/包 濃蒜 橘", "short": "義美 青豆178G/包 濃蒜 橘"}, {"code": "36330", "name": "L-(二崙倉) 義美 脆皮青豆151G/包 鹹酥 紅", "short": "義美 脆皮青豆151G/包 鹹酥 紅"}, {"code": "36331", "name": "L-(二崙倉) 義美 脆皮青豆151G/包 哇沙米 綠", "short": "義美 脆皮青豆151G/包 哇沙米 綠"}, {"code": "36332", "name": "L-(二崙倉) 義美 脆皮青豆151G/包 濃蒜 橘", "short": "義美 脆皮青豆151G/包 濃蒜 橘"}, {"code": "39376", "name": "L-(二崙倉) 義美 軟Q牛奶糖105G/包", "short": "義美 軟Q牛奶糖105G/包"}, {"code": "36334", "name": "L-(二崙倉) 義美 果凍U鮮228g/包 香甜葡萄口味", "short": "義美 果凍U鮮228g/包 香甜葡萄口味"}, {"code": "36335", "name": "L-(二崙倉) 義美 果凍U鮮228G/包 沁香柳橙口味", "short": "義美 果凍U鮮228G/包 沁香柳橙口味"}, {"code": "36336", "name": "L-(二崙倉) 義美 果凍U鮮228G/包 酸甜鳳梨口味", "short": "義美 果凍U鮮228G/包 酸甜鳳梨口味"}, {"code": "36337", "name": "L-(二崙倉) 義美 果凍U鮮228G/包 蜜香蘋果口味", "short": "義美 果凍U鮮228G/包 蜜香蘋果口味"}, {"code": "36343", "name": "L-(二崙倉) 義美 小魚乾脆花生84G/包", "short": "義美 小魚乾脆花生84G/包"}, {"code": "36344", "name": "L-(二崙倉) 台灣四秀 牛舌餅110G/包 橘", "short": "台灣四秀 牛舌餅110G/包 橘"}, {"code": "36345", "name": "L-(二崙倉) 台灣四秀 竹山冬筍餅120G/包 綠", "short": "台灣四秀 竹山冬筍餅120G/包 綠"}, {"code": "36347", "name": "L-(二崙倉) 義美 狀元煎餅96G/包 花生 橘", "short": "義美 狀元煎餅96G/包 花生 橘"}, {"code": "36348", "name": "L-(二崙倉) 義美 狀元煎餅96G/包 杏仁 紅", "short": "義美 狀元煎餅96G/包 杏仁 紅"}, {"code": "36686", "name": "L-(總倉) 義美小泡芙57G/包 厚奶茶", "short": "義美小泡芙57G/包 厚奶茶"}, {"code": "37991", "name": "L-(二崙倉) 義美 夾心酥152G/包 黑芝麻可可", "short": "義美 夾心酥152G/包 黑芝麻可可"}, {"code": "37992", "name": "L-(二崙倉) 義美 夾心酥152G/包 藍莓風味", "short": "義美 夾心酥152G/包 藍莓風味"}];
+
+const STORES = ["虎尾","北港","嘉義","高雄","潭子","豐原","屏東"];
+const LS_ITEMS="ims_items_v1", LS_CUSTOM="ims_custom_v1", LS_CART="ims_cart_v1_", LS_CUR="ims_cur_v1";
+
+let items=[], customFlags={}, currentStore="", cart={}, searchText="";
+
+function loadState(){
+  try{ items = JSON.parse(localStorage.getItem(LS_ITEMS)) || []; }catch(e){ items=[]; }
+  if(!Array.isArray(items) || !items.length) items = DEFAULT_ITEMS.slice();
+  try{ customFlags = JSON.parse(localStorage.getItem(LS_CUSTOM)) || {}; }catch(e){ customFlags={}; }
+  currentStore = localStorage.getItem(LS_CUR) || "";
+  loadCart();
+}
+function saveItems(){ localStorage.setItem(LS_ITEMS, JSON.stringify(items)); }
+function saveCustom(){ localStorage.setItem(LS_CUSTOM, JSON.stringify(customFlags)); }
+function loadCart(){ try{ cart = JSON.parse(localStorage.getItem(LS_CART+currentStore)) || {}; }catch(e){ cart={}; } }
+function saveCart(){ localStorage.setItem(LS_CART+currentStore, JSON.stringify(cart)); }
+
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+  const isOrder = id==='screen-order';
+  document.getElementById('actionbar').style.display = isOrder ? 'block' : 'none';
+  document.getElementById('fabBtn').style.display = isOrder ? 'flex' : 'none';
+  document.getElementById('appbarCtx').innerHTML = currentStore ? `目前門市：<b>${currentStore}</b>` : '請選擇門市';
+}
+
+/* ================= 主頁 ================= */
+function renderHome(){
+  const grid = document.getElementById('storeGrid');
+  grid.innerHTML = STORES.map((s,i)=>{
+    let n=0; try{ n=Object.keys(JSON.parse(localStorage.getItem(LS_CART+s)||'{}')).length; }catch(e){}
+    const status = n>0 ? `<span class="st-ok">已叫貨 ${n} 項</span>` : `<span class="st-new">尚未叫貨</span>`;
+    return `<button class="store-card" onclick="selectStore('${s}')">
+      <span class="store-num">${String(i+1).padStart(2,'0')}</span>
+      <span class="store-name serif">${s}</span>
+      <span class="store-status">${status}</span>
+    </button>`;
+  }).join('');
+}
+function selectStore(name){
+  currentStore = name;
+  localStorage.setItem(LS_CUR, name);
+  loadCart();
+  renderOrder();
+  show('screen-order');
+}
+
+/* ================= 叫貨 ================= */
+function onSearch(v){ searchText=v; renderOrder(); }
+function renderOrder(){
+  document.getElementById('orderStoreName').textContent = currentStore;
+  const kw = searchText.trim().toLowerCase();
+  const list = document.getElementById('itemList');
+  let rows = items.filter(it => !kw || it.code.toLowerCase().includes(kw) || it.name.toLowerCase().includes(kw));
+  if(!rows.length){
+    list.innerHTML = `<div class="empty">${kw ? '找不到符合「'+searchText+'」的品項' : '目前沒有品項，請先匯入品項 Excel 或新增品項'}</div>`;
+  } else {
+    list.innerHTML = rows.map(it=>{
+      const ck = cart[it.code];
+      return `<div class="item-row ${ck?'on':''}" role="button" tabindex="0"
+        onclick="toggleItem('${it.code}')"
+        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem('${it.code}')}">
+        <span class="checkmark">${ck?'✓':''}</span>
+        <span class="item-code">${it.code}</span>
+        <span class="item-name">${it.name}</span>
+        ${ck?`<span class="qty-mini" onclick="event.stopPropagation()">
+          <button onclick="qty('${it.code}',-1)">−</button><b>${ck.qty}</b><button onclick="qty('${it.code}',1)">+</button>
+        </span>`:''}
+      </div>`;
+    }).join('');
+  }
+  updateBar();
+}
+function toggleItem(code){
+  if(cart[code]){ delete cart[code]; }
+  else {
+    const it = items.find(i=>i.code===code);
+    cart[code] = {code:code, name: it ? it.name : code, qty:1};
+  }
+  saveCart(); renderOrder();
+}
+function qty(code, d){
+  if(!cart[code]) return;
+  cart[code].qty = Math.max(1, cart[code].qty + d);
+  saveCart();
+  const active = document.querySelector('.screen.active');
+  if(active.id==='screen-review') renderReview(); else renderOrder();
+}
+function updateBar(){
+  const n = Object.keys(cart).length;
+  document.getElementById('barCount').textContent = n;
+}
+
+/* ================= 確認 ================= */
+function goReview(){
+  if(!Object.keys(cart).length){ alert('尚未勾選任何品項。'); return; }
+  renderReview(); show('screen-review');
+}
+function renderReview(){
+  document.getElementById('reviewStoreName').textContent = currentStore;
+  const keys = Object.keys(cart);
+  const list = document.getElementById('reviewList');
+  if(!keys.length){
+    list.innerHTML = `<div class="empty">尚未勾選任何品項</div>`;
+  } else {
+    list.innerHTML = keys.map(code=>{
+      const it = cart[code];
+      return `<div class="rv-row">
+        <div class="rv-info"><span class="item-code">${it.code}</span><span class="item-name">${it.name}</span></div>
+        <div class="qty-stepper">
+          <button onclick="qty('${code}',-1)">−</button><b>${it.qty}</b><button onclick="qty('${code}',1)">+</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('sumItems').textContent = keys.length;
+  document.getElementById('sumQty').textContent = keys.reduce((a,c)=>a+cart[c].qty,0);
+}
+function clearCart(){
+  if(!Object.keys(cart).length) return;
+  if(!confirm(`確定清除「${currentStore}」門市的叫貨清單？`)) return;
+  cart={}; saveCart(); renderReview(); renderHome();
+}
+
+/* ================= 導覽 ================= */
+function goHome(){ renderHome(); show('screen-home'); }
+function goOrder(){ renderOrder(); show('screen-order'); }
+
+/* ================= 品項管理 ================= */
+function openManage(){
+  renderCustomList();
+  document.getElementById('manageModal').classList.add('open');
+}
+function closeManage(){ document.getElementById('manageModal').classList.remove('open'); }
+function switchTab(btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(btn.dataset.tab).classList.add('active');
+}
+function addItem(){
+  const code = document.getElementById('newCode').value.trim();
+  const name = document.getElementById('newName').value.trim();
+  if(!code || !name){ alert('請輸入品項編碼與名稱。'); return; }
+  if(items.some(i=>i.code===code)){ alert('此品項編碼已存在。'); return; }
+  items.push({code:code, name:name});
+  customFlags[code] = true;
+  saveItems(); saveCustom();
+  renderCustomList(); renderOrder();
+  document.getElementById('newCode').value='';
+  document.getElementById('newName').value='';
+  alert(`已新增品項：${code} ${name}`);
+}
+function delItem(code){
+  if(!confirm(`確定刪除品項 ${code}？`)) return;
+  items = items.filter(i=>i.code!==code);
+  delete customFlags[code];
+  delete cart[code];
+  saveItems(); saveCustom(); saveCart();
+  renderCustomList(); renderOrder();
+}
+function renderCustomList(){
+  const custom = items.filter(i=>customFlags[i.code]);
+  const el = document.getElementById('customList');
+  if(!custom.length){
+    el.innerHTML = `<div class="empty">尚無手動新增的品項</div>`;
+  } else {
+    el.innerHTML = custom.map(it=>`
+      <div class="custom-row">
+        <div class="info"><span class="c">${it.code}</span><span class="n">${it.name}</span></div>
+        <button class="del-btn" onclick="delItem('${it.code}')">刪除</button>
+      </div>`).join('');
+  }
+}
+function importExcel(file){
+  if(typeof XLSX==='undefined'){ alert('Excel 功能需連網載入，請確認網路連線後再試。'); return; }
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    try{
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      const out = [];
+      for(const r of rows){
+        const c = String(r[0]||'').trim();
+        const n = String(r[1]||'').trim();
+        if(!n) continue;
+        if(/品項|編碼|編號/.test(c) && /品項|名稱|規格/.test(n)) continue;
+        out.push({code:c, name:n});
+      }
+      if(!out.length){ alert('無法從檔案讀出品項，請確認格式（第一欄編碼、第二欄名稱）。'); return; }
+      if(!confirm(`將以檔案內容取代目前品項清單（共 ${out.length} 項），確定？`)) return;
+      items = out; customFlags = {};
+      saveItems(); saveCustom();
+      renderCustomList(); renderOrder();
+      document.getElementById('importMsg').textContent = `✓ 已匯入 ${out.length} 項品項`;
+      alert(`已匯入 ${out.length} 項品項。`);
+    }catch(err){
+      alert('匯入失敗：'+err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function resetItems(){
+  if(!confirm('回復為內建預設品項清單？')) return;
+  items = DEFAULT_ITEMS.slice(); customFlags = {};
+  saveItems(); saveCustom();
+  renderCustomList(); renderOrder();
+  alert('已回復內建預製品項。');
+}
+
+/* ================= 匯出 Excel ================= */
+function exportExcel(){
+  if(typeof XLSX==='undefined'){ alert('Excel 功能需連網載入，請確認網路連線後再試。'); return; }
+  const keys = Object.keys(cart);
+  if(!keys.length){ alert('尚未勾選任何品項，無法匯出。'); return; }
+  const aoa = [];
+  aoa.push(['門市叫貨單', currentStore, '']);
+  aoa.push(['匯出日期', new Date().toLocaleDateString('zh-TW'), '']);
+  aoa.push(['品項編碼','品項名稱[規格]','數量']);
+  keys.forEach(c=>{ const it=cart[c]; aoa.push([it.code, it.name, it.qty]); });
+  aoa.push([]);
+  aoa.push(['總品項數', keys.length, '']);
+  aoa.push(['總數量', keys.reduce((a,c)=>a+cart[c].qty,0), '']);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:14},{wch:48},{wch:10}];
+  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:2}}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '叫貨單');
+  const d = new Date();
+  const ds = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  XLSX.writeFile(wb, `叫貨單-${currentStore}-${ds}.xlsx`);
+}
+
+/* ================= 啟動 ================= */
+loadState();
+renderHome();
+show('screen-home');
+/* 支援網址參數 ?store=門市名 直接帶入門市（方便分享） */
+(function(){
+  try{
+    const s = new URLSearchParams(location.search).get('store');
+    if(s && STORES.includes(s)){ selectStore(s); }
+  }catch(e){}
+})();
+</script>
+</body>
+</html>
