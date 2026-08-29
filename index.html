@@ -400,6 +400,10 @@ input{font-family:inherit}
 .hist-check input:checked + .hck::after{content:'✓'}
 .hist-del{color:var(--red);font-size:12px;font-weight:700;padding:5px 10px;border:1px solid var(--red);border-radius:8px}
 .hist-del:hover{background:var(--red);color:#fff}
+.hist-search{margin-bottom:10px}
+.hist-search input{width:100%;padding:11px 14px;border:1.5px solid var(--line);border-radius:10px;font-size:14.5px;outline:none;background:var(--card)}
+.hist-search input:focus{border-color:var(--red)}
+.hist-count{font-size:12px;color:var(--ink-3);margin:6px 2px 0}
 </style>
 </head>
 <body>
@@ -549,6 +553,10 @@ input{font-family:inherit}
   <div class="modal">
     <h3>歷程記錄（叫貨歷史）</h3>
     <div class="import-hint">查看各門市已叫貨的品項與日期，勾選「採購已處理」後按儲存。</div>
+    <div class="hist-search">
+      <input id="histSearch" type="search" placeholder="搜尋門市或品項名稱（如：豐原、小泡芙）…" oninput="onHistSearch(this.value)">
+      <div class="hist-count" id="histCount"></div>
+    </div>
     <div class="hist-list" id="histList"></div>
     <button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="exportHist()">⬇ 匯出歷程 Excel</button>
     <div class="form-actions" style="margin-top:10px">
@@ -863,13 +871,26 @@ function submitOrder(){
   if(doClear){ cart={}; saveCart(); renderHome(); show('screen-home'); }
   else { renderReview(); }
 }
-function openHist(){
+let histKeyword = '';
+function onHistSearch(v){ histKeyword = v; renderHist(); }
+function renderHist(){
   const h = loadHistory();
-  const list = document.getElementById('histList');
-  if(!h.length){
-    list.innerHTML = `<div class="empty">尚無歷程記錄。送出叫貨單後會自動記錄。</div>`;
+  const kw = histKeyword.trim().toLowerCase();
+  let list = h;
+  if(kw){
+    list = h.filter(r=>{
+      if(r.store.toLowerCase().includes(kw)) return true;
+      return r.items.some(it=>it.name.toLowerCase().includes(kw) || String(it.code).toLowerCase().includes(kw));
+    });
+  }
+  const el = document.getElementById('histList');
+  document.getElementById('histCount').textContent = kw ? `找到 ${list.length} 筆（共 ${h.length} 筆）` : `共 ${h.length} 筆`;
+  if(!list.length){
+    el.innerHTML = `<div class="empty">${kw ? '找不到符合的記錄' : '尚無歷程記錄。送出叫貨單後會自動記錄。'}</div>`;
   } else {
-    list.innerHTML = h.map((r,idx)=>`
+    el.innerHTML = list.map(r=>{
+      const idx = h.indexOf(r);
+      return `
       <div class="hist-card ${r.processed?'done':''}">
         <div class="hist-head">
           <span class="hist-store">${r.store}</span>
@@ -886,10 +907,11 @@ function openHist(){
           </label>
           <button class="hist-del" onclick="delHist(${idx})">刪除</button>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
-  document.getElementById('histModal').classList.add('open');
 }
+function openHist(){ renderHist(); document.getElementById('histModal').classList.add('open'); }
 function closeHist(){ document.getElementById('histModal').classList.remove('open'); }
 function saveHistChecks(){
   const h = loadHistory();
