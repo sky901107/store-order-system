@@ -23,16 +23,86 @@ function ensureXLSX(onOk, onFail){
     document.head.appendChild(s);
   })();
 }
-/* 自訂下載（比 writeFile 更可靠，支援各種瀏覽器） */
+/* 自訂下載：自動下載＋若環境阻擋則顯示手動儲存面板 */
+let saveBlobUrl='', saveFilename='', saveCsvText='';
 function downloadBlob(blob, filename){
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+  let url = null;
+  try{ url = URL.createObjectURL(blob); }catch(e){}
+  try{
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }catch(e){}
+  showSavePanel(url, filename);
 }
+function showSavePanel(url, filename){
+  saveBlobUrl = url; saveFilename = filename; saveCsvText = buildCsvText();
+  document.getElementById('saveFileName').textContent = filename;
+  const link = document.getElementById('saveLink');
+  if(url){ link.href = url; link.style.display = ''; } else { link.style.display = 'none'; }
+  link.setAttribute('download', filename);
+  document.getElementById('saveLinkName').textContent = filename;
+  document.getElementById('savePreview').innerHTML = buildPreviewHTML();
+  document.getElementById('saveModal').classList.add('open');
+}
+function retryDownload(){
+  if(!saveBlobUrl){ alert('無法下載，請用「複製叫貨資料」。'); return; }
+  try{
+    const a = document.createElement('a');
+    a.href = saveBlobUrl; a.download = saveFilename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }catch(e){ alert('仍無法下載，請用「手動儲存」或「複製叫貨資料」。'); }
+}
+function openInTab(){
+  if(!saveBlobUrl){ alert('無法開啟，請用「複製叫貨資料」。'); return; }
+  try{ window.open(saveBlobUrl, '_blank'); }
+  catch(e){ alert('無法開啟新分頁，請用「手動儲存」連結（長按／右鍵另存）。'); }
+}
+function closeSave(){
+  document.getElementById('saveModal').classList.remove('open');
+  if(saveBlobUrl){ try{ URL.revokeObjectURL(saveBlobUrl); }catch(e){} saveBlobUrl=''; }
+}
+function copyData(){
+  const text = saveCsvText;
+  const done = ()=>{ alert('已複製叫貨資料，可貼到 Excel。'); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(()=>{ legacyCopy(text); done(); });
+  } else { legacyCopy(text); done(); }
+}
+function legacyCopy(text){
+  try{
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }catch(e){ alert('複製失敗，請用「手動儲存」連結。'); }
+}
+function buildCsvText(){
+  const keys = Object.keys(cart);
+  if(!keys.length) return '';
+  const d = new Date();
+  const ds = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+  const lines = ['門市,日期,品項編碼,品項名稱[規格],數量'];
+  keys.forEach(c=>{ const it=cart[c]; lines.push([currentStore, ds, it.code, it.name, it.qty].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')); });
+  lines.push(`總品項數,${keys.length}`);
+  lines.push(`合計數量,${keys.reduce((a,c)=>a+cart[c].qty,0)}`);
+  return lines.join('\r\n');
+}
+function buildPreviewHTML(){
+  const keys = Object.keys(cart);
+  if(!keys.length) return '';
+  return `<table class="save-table"><tr><th>編碼</th><th>品項</th><th>數量</th></tr>` +
+    keys.slice(0,8).map(c=>{ const it=cart[c]; return `<tr><td>${it.code}</td><td>${it.name}</td><td>${it.qty}</td></tr>`; }).join('') +
+    (keys.length>8 ? `<tr><td colspan="3">…還有 ${keys.length-8} 項</td></tr>` : '') +
+    `</table>`;
+}
+function dismissBanner(){ document.getElementById('envBanner').style.display = 'none'; }
 function saveXLSX(wb, filename){
   const out = XLSX.write(wb, {bookType:'xlsx', type:'array'});
   const blob = new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
@@ -295,6 +365,21 @@ input{font-family:inherit}
 .file-label:hover{background:var(--red-d)}
 #fileInput{display:none}
 .imported-count{font-size:13px;color:var(--green);font-weight:700;margin-top:8px}
+.env-banner{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  background:#fff3e0;border-bottom:1px solid #f0d9a8;color:#8a5a12;
+  font-size:13px;padding:8px 16px;z-index:45;position:relative;
+}
+.env-banner a{color:var(--red);font-weight:700;text-decoration:underline}
+.env-banner button{margin-left:auto;font-size:14px;color:#8a5a12;background:none;border:none;cursor:pointer;padding:2px 6px}
+.save-file{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;word-break:break-all}
+.save-note{font-size:13px;color:var(--ink-3);margin-bottom:12px}
+.save-link-wrap{margin:12px 0;padding:10px 12px;background:var(--green-soft);border:1px solid var(--green-line);border-radius:10px;font-size:13.5px}
+.save-link-wrap a{color:var(--green);font-weight:700;word-break:break-all}
+.save-preview{margin:12px 0;max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:10px}
+.save-table{width:100%;border-collapse:collapse;font-size:13px}
+.save-table th{background:var(--paper);padding:7px 8px;text-align:left;position:sticky;top:0}
+.save-table td{padding:6px 8px;border-top:1px solid var(--line)}
 </style>
 </head>
 <body>
@@ -305,6 +390,12 @@ input{font-family:inherit}
     <span id="clockDate">--</span>
     <span id="clockTime">--:--:--</span>
   </div>
+</div>
+
+<div class="env-banner" id="envBanner" style="display:none">
+  <span>⚠️ 目前為<strong>預覽環境</strong>，檔案下載可能被限制。</span>
+  <span>請用瀏覽器開啟線上版：<a href="https://sky901107.github.io/store-order-system/" target="_blank" rel="noopener">sky901107.github.io/store-order-system</a></span>
+  <button onclick="dismissBanner()">✕</button>
 </div>
 
 <!-- 主頁 -->
@@ -408,6 +499,26 @@ input{font-family:inherit}
       <button class="btn btn-ghost" onclick="closeMerge()">取消</button>
       <button class="btn btn-green" onclick="doMergeExport()">⬇ 匯出合併總表</button>
     </div>
+  </div>
+</div>
+
+<!-- 匯出完成面板 -->
+<div class="modal-back" id="saveModal">
+  <div class="modal">
+    <h3>匯出完成</h3>
+    <div class="save-file" id="saveFileName"></div>
+    <div class="save-note">若瀏覽器沒有自動下載，請用以下任一方式取得檔案：</div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="retryDownload()">🔄 重新下載</button>
+      <button class="btn btn-ghost" onclick="openInTab()">↗ 新分頁開啟</button>
+    </div>
+    <div class="save-link-wrap">
+      <a id="saveLink" download="">📎 手動儲存：<span id="saveLinkName"></span></a><br>
+      <span style="font-size:12px">（手機長按連結／電腦右鍵另存檔案）</span>
+    </div>
+    <button class="btn btn-ghost" style="width:100%" onclick="copyData()">📋 複製叫貨資料</button>
+    <div class="save-preview" id="savePreview"></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:10px" onclick="closeSave()">關閉</button>
   </div>
 </div>
 
@@ -876,6 +987,15 @@ show('screen-home');
 tickClock();
 setInterval(tickClock, 1000);
 ensureXLSX(()=>{}, ()=>{});
+/* 偵測預覽環境（iframe），提示改用線上版 */
+(function(){
+  try{
+    if(window.self !== window.top){
+      const b = document.getElementById('envBanner');
+      if(b) b.style.display = 'flex';
+    }
+  }catch(e){}
+})();
 /* 支援網址參數 ?store=門市名 直接帶入門市（方便分享） */
 (function(){
   try{
