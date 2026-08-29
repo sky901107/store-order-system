@@ -394,6 +394,13 @@ function categorize(name){
 function normalizeItems(){
   items.forEach(it=>{ if(!it.category) it.category = categorize(it.name); });
 }
+/* 常用分類優先順序（依品項數量多寡排列，可自行調整） */
+const CAT_ORDER = ['夾心酥','蘇打餅','小泡芙','軟糖/QQ糖','蛋捲','薄餅','煎餅','青豆','果凍','法蘭酥','消化餅','千層派','巧克力球','營養餅','威化捲','巧克力酥片','養生餅'];
+function catRank(c){
+  if(c==='其他') return 999;
+  const i = CAT_ORDER.indexOf(c);
+  return i === -1 ? 500 : i;
+}
 
 function loadState(){
   try{ items = JSON.parse(localStorage.getItem(LS_ITEMS)) || []; }catch(e){ items=[]; }
@@ -478,7 +485,7 @@ function initCatBar(){
 function renderCats(){
   const counts = {};
   items.forEach(it=>{ counts[it.category] = (counts[it.category]||0)+1; });
-  const cats = Object.keys(counts).sort();
+  const cats = Object.keys(counts).sort((a,b)=>catRank(a)-catRank(b));
   const bar = document.getElementById('catBar');
   bar.innerHTML = ['全部'].concat(cats).map(c=>{
     const n = c==='全部' ? items.length : counts[c];
@@ -516,7 +523,7 @@ function renderOrder(){
   } else if(activeCat === '全部'){
     const byCat = {};
     rows.forEach(it=>{ (byCat[it.category]=byCat[it.category]||[]).push(it); });
-    list.innerHTML = Object.keys(byCat).sort().map(c=>{
+    list.innerHTML = Object.keys(byCat).sort((a,b)=>catRank(a)-catRank(b)).map(c=>{
       const checked = byCat[c].filter(it=>cart[it.code]).length;
       return `<div class="cat-head">
         <span class="tag">${c}</span>
