@@ -65,6 +65,16 @@ input{font-family:inherit}
 .st-ok{background:var(--green-soft);color:var(--green);font-weight:700}
 .home-foot{margin-top:26px;text-align:center;color:var(--ink-3);font-size:12px}
 .link-btn{color:var(--red);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.merge-export{margin-top:22px;text-align:center}
+.merge-export .btn{width:100%;max-width:380px}
+.merge-list{display:flex;flex-direction:column;gap:8px}
+.merge-row{display:flex;align-items:center;gap:10px;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:11px 12px;cursor:pointer}
+.merge-row:hover{border-color:var(--gold)}
+.merge-row input{display:none}
+.merge-row .checkmark{width:22px;height:22px;border-radius:6px;border:2px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:transparent;flex:none}
+.merge-row input:checked + .checkmark{background:var(--green);border-color:var(--green);color:#fff}
+.merge-name{font-size:15px;font-weight:700;flex:1}
+.merge-cnt{font-size:12.5px;color:var(--ink-3)}
 
 /* ===== Order ===== */
 .subbar{display:flex;align-items:center;gap:10px;margin:2px 0 14px}
@@ -81,8 +91,16 @@ input{font-family:inherit}
 }
 .searchbox input:focus{border-color:var(--red)}
 .searchbox .hint{font-size:12px;color:var(--ink-3);margin:6px 2px 0}
-.cats{position:sticky;top:134px;z-index:29;display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin-bottom:6px;scrollbar-width:none}
-.cats::-webkit-scrollbar{display:none}
+.cats-wrap{position:sticky;top:134px;z-index:29;margin-bottom:6px}
+.cats{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;cursor:grab;scrollbar-width:thin;scrollbar-color:var(--gold) transparent}
+.cats::-webkit-scrollbar{height:6px}
+.cats::-webkit-scrollbar-track{background:transparent}
+.cats::-webkit-scrollbar-thumb{background:var(--gold);border-radius:3px}
+.cats.dragging{cursor:grabbing;user-select:none}
+.cat-fade{position:absolute;top:0;bottom:10px;width:28px;pointer-events:none;opacity:0;transition:opacity .2s}
+.cat-fade.left{left:0;background:linear-gradient(to right, var(--paper), transparent)}
+.cat-fade.right{right:0;background:linear-gradient(to left, var(--paper), transparent)}
+.cat-fade.show{opacity:1}
 .cat-chip{flex:none;padding:8px 14px;border-radius:20px;background:var(--card);border:1px solid var(--line);font-size:13.5px;font-weight:700;color:var(--ink-2);white-space:nowrap}
 .cat-chip:hover{border-color:var(--gold)}
 .cat-chip.active{background:var(--red);border-color:var(--red);color:#fff}
@@ -239,6 +257,9 @@ input{font-family:inherit}
     <p>請選擇您的門市，開始勾選叫貨品項。</p>
   </div>
   <div class="store-grid" id="storeGrid"></div>
+  <div class="merge-export">
+    <button class="btn btn-ghost" onclick="openMerge()">⬇ 合併匯出多門市總表</button>
+  </div>
   <div class="home-foot">
     品項清單可隨時更新：<button class="link-btn" onclick="openManage()">品項管理（新增／匯入Excel）</button><br>
     資料儲存在目前瀏覽器，換裝置不會同步。
@@ -255,7 +276,11 @@ input{font-family:inherit}
     <input id="searchInput" type="search" placeholder="搜尋品項名稱或編號…" oninput="onSearch(this.value)">
     <div class="hint">可輸入品項名稱關鍵字或編號（如「小泡芙」或「35619」）</div>
   </div>
-  <div class="cats" id="catBar"></div>
+  <div class="cats-wrap">
+    <div class="cats" id="catBar"></div>
+    <div class="cat-fade left" id="catFadeL"></div>
+    <div class="cat-fade right" id="catFadeR"></div>
+  </div>
   <div class="item-list" id="itemList"></div>
 </div>
 
@@ -311,6 +336,19 @@ input{font-family:inherit}
     <div class="tab-pane" id="tab-custom">
       <div class="import-hint">以下為您手動新增的品項，可隨時刪除。</div>
       <div class="custom-list" id="customList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 合併匯出 Modal -->
+<div class="modal-back" id="mergeModal" onclick="if(event.target===this)closeMerge()">
+  <div class="modal">
+    <h3>合併匯出多門市總表</h3>
+    <div class="import-hint">勾選要合併的門市，匯出為一份 Excel 總表（含門市與日期欄位）。</div>
+    <div class="merge-list" id="mergeList"></div>
+    <div class="form-actions" style="margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeMerge()">取消</button>
+      <button class="btn btn-green" onclick="doMergeExport()">⬇ 匯出合併總表</button>
     </div>
   </div>
 </div>
@@ -402,6 +440,41 @@ function selectStore(name){
 
 /* ================= 叫貨 ================= */
 function onSearch(v){ searchText=v; renderOrder(); }
+function updateCatFades(){
+  const el = document.getElementById('catBar');
+  const fl = document.getElementById('catFadeL');
+  const fr = document.getElementById('catFadeR');
+  if(!el || !fl || !fr) return;
+  fl.classList.toggle('show', el.scrollLeft > 4);
+  fr.classList.toggle('show', el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
+}
+function initCatBar(){
+  const el = document.getElementById('catBar');
+  if(!el || el.dataset.drag) return;
+  el.dataset.drag = '1';
+  let isDown=false, startX=0, startScroll=0, moved=false;
+  el.addEventListener('pointerdown', e=>{
+    if(e.pointerType !== 'mouse') return;
+    isDown=true; moved=false; startX=e.clientX; startScroll=el.scrollLeft;
+    el.classList.add('dragging');
+    try{ el.setPointerCapture(e.pointerId); }catch(err){}
+  });
+  el.addEventListener('pointermove', e=>{
+    if(!isDown) return;
+    const dx = e.clientX - startX;
+    if(Math.abs(dx) > 4) moved = true;
+    el.scrollLeft = startScroll - dx;
+  });
+  const end = ()=>{ isDown=false; el.classList.remove('dragging'); };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+  el.addEventListener('click', e=>{
+    if(moved){ e.preventDefault(); e.stopPropagation(); moved=false; }
+  }, true);
+  el.addEventListener('scroll', updateCatFades);
+  window.addEventListener('resize', updateCatFades);
+  updateCatFades();
+}
 function renderCats(){
   const counts = {};
   items.forEach(it=>{ counts[it.category] = (counts[it.category]||0)+1; });
@@ -411,6 +484,8 @@ function renderCats(){
     const n = c==='全部' ? items.length : counts[c];
     return `<button class="cat-chip ${activeCat===c?'active':''}" onclick="setCat('${c}')">${c}<span class="cnt">${n}</span></button>`;
   }).join('');
+  initCatBar();
+  updateCatFades();
 }
 function setCat(c){ activeCat = c; renderOrder(); }
 function itemRowHTML(it){
@@ -603,22 +678,71 @@ function exportExcel(){
   const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
   const week = ['日','一','二','三','四','五','六'][now.getDay()];
   const aoa = [];
-  aoa.push(['門市叫貨單', '', '']);
-  aoa.push(['門市', currentStore, '']);
-  aoa.push(['日期', `${dateStr}（週${week}）`, '']);
-  aoa.push(['品項編碼','品項名稱[規格]','數量']);
-  keys.forEach(c=>{ const it=cart[c]; aoa.push([it.code, it.name, it.qty]); });
+  aoa.push(['門市叫貨單', '', '', '', '']);
+  aoa.push(['門市', currentStore, '', '', '']);
+  aoa.push(['日期', `${dateStr}（週${week}）`, '', '', '']);
+  aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
+  keys.forEach(c=>{ const it=cart[c]; aoa.push([currentStore, dateStr, it.code, it.name, it.qty]); });
   aoa.push([]);
-  aoa.push(['總品項數', keys.length, '']);
-  aoa.push(['總數量', keys.reduce((a,c)=>a+cart[c].qty,0), '']);
+  aoa.push(['總品項數', keys.length, '', '', '']);
+  aoa.push(['總數量', keys.reduce((a,c)=>a+cart[c].qty,0), '', '', '']);
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{wch:14},{wch:48},{wch:10}];
-  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:2}}];
+  ws['!cols'] = [{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}];
+  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}},{s:{r:2,c:0},e:{r:2,c:4}}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '叫貨單');
   const d = new Date();
   const ds = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
   XLSX.writeFile(wb, `叫貨單-${currentStore}-${ds}.xlsx`);
+}
+
+/* ================= 合併匯出 ================= */
+function openMerge(){
+  const withItems = STORES.filter(s=>{
+    try{ return Object.keys(JSON.parse(localStorage.getItem(LS_CART+s)||'{}')).length>0; }catch(e){ return false; }
+  });
+  if(!withItems.length){ alert('目前沒有任何門市有叫貨清單。'); return; }
+  const list = document.getElementById('mergeList');
+  list.innerHTML = withItems.map(s=>{
+    let n=0; try{ n=Object.keys(JSON.parse(localStorage.getItem(LS_CART+s)||'{}')).length; }catch(e){}
+    return `<label class="merge-row"><input type="checkbox" data-store="${s}" checked><span class="checkmark">✓</span><span class="merge-name">${s}</span><span class="merge-cnt">${n} 項</span></label>`;
+  }).join('');
+  document.getElementById('mergeModal').classList.add('open');
+}
+function closeMerge(){ document.getElementById('mergeModal').classList.remove('open'); }
+function doMergeExport(){
+  if(typeof XLSX==='undefined'){ alert('Excel 功能需連網載入，請確認網路連線後再試。'); return; }
+  const stores = [...document.querySelectorAll('#mergeList input:checked')].map(i=>i.dataset.store);
+  if(!stores.length){ alert('請至少選擇一個門市。'); return; }
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
+  const week = ['日','一','二','三','四','五','六'][now.getDay()];
+  const aoa = [];
+  aoa.push(['門市叫貨總表', '', '', '', '']);
+  aoa.push(['匯出日期', `${dateStr}（週${week}）`, '', '', '']);
+  aoa.push([]);
+  aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
+  let totalItems=0, totalQty=0;
+  stores.forEach(s=>{
+    let cart={}; try{ cart = JSON.parse(localStorage.getItem(LS_CART+s)||'{}'); }catch(e){ cart={}; }
+    Object.keys(cart).forEach(c=>{
+      const it = cart[c];
+      aoa.push([s, dateStr, it.code, it.name, it.qty]);
+      totalItems++; totalQty += it.qty;
+    });
+  });
+  aoa.push([]);
+  aoa.push(['總門市數', stores.length, '', '', '']);
+  aoa.push(['總品項數', totalItems, '', '', '']);
+  aoa.push(['總數量', totalQty, '', '', '']);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}];
+  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '合併總表');
+  const ds = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  XLSX.writeFile(wb, `門市叫貨總表-${ds}.xlsx`);
+  closeMerge();
 }
 
 /* ================= 啟動 ================= */
