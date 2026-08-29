@@ -744,7 +744,7 @@ function exportExcel(){
   keys.forEach(c=>{ const it=cart[c]; aoa.push([currentStore, dateStr, it.code, it.name, it.qty]); });
   aoa.push([]);
   aoa.push(['總品項數', keys.length, '', '', '']);
-  aoa.push(['總數量', keys.reduce((a,c)=>a+cart[c].qty,0), '', '', '']);
+  aoa.push(['合計數量', keys.reduce((a,c)=>a+cart[c].qty,0), '', '', '']);
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = [{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}];
   ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}},{s:{r:2,c:0},e:{r:2,c:4}}];
@@ -782,13 +782,22 @@ function doMergeExport(){
   aoa.push([]);
   aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
   let totalItems=0, totalQty=0;
+  const agg = {};
   stores.forEach(s=>{
     let cart={}; try{ cart = JSON.parse(localStorage.getItem(LS_CART+s)||'{}'); }catch(e){ cart={}; }
     Object.keys(cart).forEach(c=>{
       const it = cart[c];
       aoa.push([s, dateStr, it.code, it.name, it.qty]);
       totalItems++; totalQty += it.qty;
+      if(!agg[it.code]) agg[it.code] = {name: it.name, qty: 0};
+      agg[it.code].qty += it.qty;
     });
+  });
+  aoa.push([]);
+  aoa.push(['品項合計（跨門市）', '', '', '', '']);
+  aoa.push(['品項編碼','品項名稱[規格]','合計數量','','']);
+  Object.keys(agg).forEach(code=>{
+    aoa.push([code, agg[code].name, agg[code].qty, '', '']);
   });
   aoa.push([]);
   aoa.push(['總門市數', stores.length, '', '', '']);
