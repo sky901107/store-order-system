@@ -130,6 +130,16 @@ input{font-family:inherit}
 }
 .qty-mini button:active{background:var(--red);color:#fff;border-color:var(--red)}
 .qty-mini b{min-width:26px;text-align:center;font-size:15px}
+.qty-input{
+  width:56px;padding:6px 6px;border:1.5px solid var(--line);border-radius:8px;
+  font-size:15px;font-weight:700;text-align:center;outline:none;flex:none;
+  font-variant-numeric:tabular-nums;background:#fff;color:var(--ink);
+}
+.qty-input:focus{border-color:var(--red)}
+.item-row.on .qty-input{border-color:var(--green-line);background:var(--green-soft)}
+.qty-stepper .qty-input{width:46px;padding:5px 4px;font-size:15px}
+.qty-input::-webkit-outer-spin-button,.qty-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.qty-input{-moz-appearance:textfield}
 .empty{text-align:center;color:var(--ink-3);padding:44px 0;font-size:14px}
 
 /* Sticky action bar */
@@ -497,15 +507,15 @@ function renderCats(){
 function setCat(c){ activeCat = c; renderOrder(); }
 function itemRowHTML(it){
   const ck = cart[it.code];
-  return `<div class="item-row ${ck?'on':''}" role="button" tabindex="0"
+  return `<div class="item-row ${ck?'on':''}" data-code="${it.code}" role="button" tabindex="0"
     onclick="toggleItem('${it.code}')"
     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem('${it.code}')}">
     <span class="checkmark">${ck?'✓':''}</span>
     <span class="item-code">${it.code}</span>
     <span class="item-name">${it.name}</span>
-    ${ck?`<span class="qty-mini" onclick="event.stopPropagation()">
-      <button onclick="qty('${it.code}',-1)">−</button><b>${ck.qty}</b><button onclick="qty('${it.code}',1)">+</button>
-    </span>`:''}
+    <input type="number" class="qty-input" min="0" value="${ck?ck.qty:''}" placeholder="數量"
+      onclick="event.stopPropagation()"
+      oninput="onQtyInput('${it.code}', this.value)">
   </div>`;
 }
 function renderOrder(){
@@ -537,12 +547,35 @@ function renderOrder(){
   updateBar();
 }
 function toggleItem(code){
-  if(cart[code]){ delete cart[code]; }
-  else {
+  if(cart[code]){
+    delete cart[code];
+    const input = document.querySelector(`.item-row[data-code="${code}"] .qty-input`);
+    if(input) input.value = '';
+  } else {
     const it = items.find(i=>i.code===code);
     cart[code] = {code:code, name: it ? it.name : code, qty:1};
+    const input = document.querySelector(`.item-row[data-code="${code}"] .qty-input`);
+    if(input) input.value = '1';
   }
   saveCart(); renderOrder();
+}
+function onQtyInput(code, val){
+  const q = parseInt(val, 10);
+  if(!isNaN(q) && q > 0){
+    const it = items.find(i=>i.code===code);
+    cart[code] = {code:code, name: it ? it.name : code, qty:q};
+  } else {
+    delete cart[code];
+  }
+  saveCart(); updateRow(code); updateBar();
+}
+function updateRow(code){
+  const row = document.querySelector(`.item-row[data-code="${code}"]`);
+  if(!row) return;
+  const on = !!cart[code];
+  row.classList.toggle('on', on);
+  const ck = row.querySelector('.checkmark');
+  if(ck) ck.textContent = on ? '✓' : '';
 }
 function qty(code, d){
   if(!cart[code]) return;
@@ -550,6 +583,23 @@ function qty(code, d){
   saveCart();
   const active = document.querySelector('.screen.active');
   if(active.id==='screen-review') renderReview(); else renderOrder();
+}
+function onReviewQty(code, val){
+  const q = parseInt(val, 10);
+  if(!isNaN(q) && q > 0){
+    cart[code].qty = q;
+  } else {
+    delete cart[code];
+    const row = document.querySelector(`.rv-row[data-code="${code}"]`);
+    if(row) row.remove();
+  }
+  saveCart();
+  const keys = Object.keys(cart);
+  document.getElementById('sumItems').textContent = keys.length;
+  document.getElementById('sumQty').textContent = keys.reduce((a,c)=>a+cart[c].qty,0);
+  if(!keys.length){
+    document.getElementById('reviewList').innerHTML = `<div class="empty">尚未勾選任何品項</div>`;
+  }
 }
 function updateBar(){
   const n = Object.keys(cart).length;
@@ -570,10 +620,12 @@ function renderReview(){
   } else {
     list.innerHTML = keys.map(code=>{
       const it = cart[code];
-      return `<div class="rv-row">
+      return `<div class="rv-row" data-code="${code}">
         <div class="rv-info"><span class="item-code">${it.code}</span><span class="item-name">${it.name}</span></div>
         <div class="qty-stepper">
-          <button onclick="qty('${code}',-1)">−</button><b>${it.qty}</b><button onclick="qty('${code}',1)">+</button>
+          <button onclick="qty('${code}',-1)">−</button>
+          <input type="number" class="qty-input" min="0" value="${it.qty}" oninput="onReviewQty('${code}', this.value)">
+          <button onclick="qty('${code}',1)">+</button>
         </div>
       </div>`;
     }).join('');
