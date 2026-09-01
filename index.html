@@ -473,7 +473,7 @@ input{font-family:inherit}
       <div class="cb-title serif" id="catBannerName"></div>
       <div class="cb-sub" id="catBannerSub"></div>
     </div>
-    <button class="back-light" onclick="setCat('全部')">← 返回全部</button>
+    <button class="back-light" onclick="setCat('全部', true)">← 返回全部</button>
   </div>
   <div class="item-list" id="itemList"></div>
 </div>
@@ -728,12 +728,21 @@ function renderCats(){
   const bar = document.getElementById('catBar');
   bar.innerHTML = ['全部'].concat(cats).map(c=>{
     const n = c==='全部' ? items.length : counts[c];
-    return `<button class="cat-chip ${activeCat===c?'active':''}" onclick="setCat('${c}')">${c}<span class="cnt">${n}</span></button>`;
+    return `<button class="cat-chip ${activeCat===c?'active':''}" onclick="setCat('${c}', true)">${c}<span class="cnt">${n}</span></button>`;
   }).join('');
   initCatBar();
   updateCatFades();
 }
-function setCat(c){ activeCat = c; renderOrder(); window.scrollTo(0,0); }
+function setCat(c, resetSearch){
+  activeCat = c;
+  if(resetSearch){
+    searchText = '';
+    const si = document.getElementById('searchInput');
+    if(si) si.value = '';
+  }
+  renderOrder();
+  window.scrollTo(0,0);
+}
 function itemRowHTML(it){
   const ck = cart[it.code];
   return `<div class="item-row ${ck?'on':''}" data-code="${it.code}" role="button" tabindex="0"
