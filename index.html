@@ -583,6 +583,7 @@ const DEFAULT_ITEMS = [{"code": "1", "cat": "零食類", "series": "ADOBLE", "na
 
 const STORES = ["虎尾","北港","嘉義","高雄","潭子","豐原","屏東"];
 const LS_ITEMS="ims_items_v1", LS_CUSTOM="ims_custom_v1", LS_CART="ims_cart_v1_", LS_CUR="ims_cur_v1";
+const ITEMS_VER = '2026-09-01', LS_VER = 'ims_ver_v2';
 
 let items=[], customFlags={}, currentStore="", cart={}, searchText="", activeCat="全部";
 
@@ -607,8 +608,13 @@ function normalizeItems(){
 }
 
 function loadState(){
+  let ver = '';
+  try{ ver = localStorage.getItem(LS_VER) || ''; }catch(e){}
   try{ items = JSON.parse(localStorage.getItem(LS_ITEMS)) || []; }catch(e){ items=[]; }
-  if(!Array.isArray(items) || !items.length) items = DEFAULT_ITEMS.slice();
+  if(ver !== ITEMS_VER || !Array.isArray(items) || !items.length){
+    items = DEFAULT_ITEMS.slice();
+    localStorage.setItem(LS_VER, ITEMS_VER);
+  }
   normalizeItems(); saveItems();
   try{ customFlags = JSON.parse(localStorage.getItem(LS_CUSTOM)) || {}; }catch(e){ customFlags={}; }
   currentStore = localStorage.getItem(LS_CUR) || "";
@@ -688,8 +694,8 @@ function initCatBar(){
 }
 function renderCats(){
   const counts = {};
-  items.forEach(it=>{ counts[it.category] = (counts[it.category]||0)+1; });
-  const cats = Object.keys(counts).sort((a,b)=>catRank(a)-catRank(b));
+  items.forEach(it=>{ counts[it.cat] = (counts[it.cat]||0)+1; });
+  const cats = Object.keys(counts).sort((a,b)=>counts[b]-counts[a]);
   const bar = document.getElementById('catBar');
   bar.innerHTML = ['全部'].concat(cats).map(c=>{
     const n = c==='全部' ? items.length : counts[c];
@@ -722,21 +728,35 @@ function renderOrder(){
     list.innerHTML = `<div class="empty">${kw ? '找不到符合「'+searchText+'」的品項' : '目前沒有品項，請先匯入品項 Excel 或新增品項'}</div>`;
     updateBar(); return;
   }
+  const seriesHTML = (grp)=>{
+    const byS = {};
+    grp.forEach(it=>{ (byS[it.series]=byS[it.series]||[]).push(it); });
+    return Object.keys(byS).sort((a,b)=>byS[b].length-byS[a].length).map(s=>{
+      const sv = byS[s];
+      const sc = sv.filter(it=>cart[it.code]).length;
+      return `<div class="series-head">
+        <span class="stag">${s}</span>
+        <span class="sub">${sv.length} 項${sc ? ` ・ 已勾選 ${sc}` : ''}</span>
+      </div>` + sv.map(itemRowHTML).join('');
+    }).join('');
+  };
   if(kw){
-    list.innerHTML = rows.map(itemRowHTML).join('');
+    list.innerHTML = seriesHTML(rows);
   } else if(activeCat === '全部'){
     const byCat = {};
-    rows.forEach(it=>{ (byCat[it.category]=byCat[it.category]||[]).push(it); });
-    list.innerHTML = Object.keys(byCat).sort((a,b)=>catRank(a)-catRank(b)).map(c=>{
-      const checked = byCat[c].filter(it=>cart[it.code]).length;
+    rows.forEach(it=>{ (byCat[it.cat]=byCat[it.cat]||[]).push(it); });
+    const cats = Object.keys(byCat).sort((a,b)=>byCat[b].length-byCat[a].length);
+    list.innerHTML = cats.map(c=>{
+      const cv = byCat[c];
+      const cc = cv.filter(it=>cart[it.code]).length;
       return `<div class="cat-head">
         <span class="tag">${c}</span>
-        <span class="sub">${byCat[c].length} 項${checked ? ` ・ 已勾選 ${checked}` : ''}</span>
-      </div>` + byCat[c].map(itemRowHTML).join('');
+        <span class="sub">${cv.length} 項${cc ? ` ・ 已勾選 ${cc}` : ''}</span>
+      </div>` + seriesHTML(cv);
     }).join('');
   } else {
-    rows = rows.filter(it=>it.category===activeCat);
-    list.innerHTML = rows.length ? rows.map(itemRowHTML).join('') : `<div class="empty">此分類尚無品項</div>`;
+    rows = rows.filter(it=>it.cat===activeCat);
+    list.innerHTML = rows.length ? seriesHTML(rows) : `<div class="empty">此分類尚無品項</div>`;
   }
   updateBar();
 }
@@ -993,7 +1013,7 @@ function addItem(){
   const name = document.getElementById('newName').value.trim();
   if(!code || !name){ alert('請輸入品項編碼與名稱。'); return; }
   if(items.some(i=>i.code===code)){ alert('此品項編碼已存在。'); return; }
-  items.push({code:code, name:name, category:categorize(name)});
+  items.push({code:code, name:name, cat:'其他', series:deriveSeries(name)});
   customFlags[code] = true;
   saveItems(); saveCustom();
   renderCustomList(); renderOrder();
@@ -1034,10 +1054,12 @@ function importExcel(file){
       const out = [];
       for(const r of rows){
         const c = String(r[0]||'').trim();
-        const n = String(r[1]||'').trim();
+        const cat = String(r[1]||'').trim();
+        let n = String(r[2]||'').trim();
+        if(!n) n = cat;
         if(!n) continue;
-        if(/品項|編碼|編號/.test(c) && /品項|名稱|規格/.test(n)) continue;
-        out.push({code:c, name:n, category:categorize(n)});
+        if(/^\D+$/.test(c)) continue;
+        out.push({code:c, cat:(cat&&cat!==n)?cat:'其他', series:deriveSeries(n), name:n});
       }
       if(!out.length){ alert('無法從檔案讀出品項，請確認格式（第一欄編碼、第二欄名稱）。'); return; }
       if(!confirm(`將以檔案內容取代目前品項清單（共 ${out.length} 項），確定？`)) return;
@@ -1056,6 +1078,7 @@ function resetItems(){
   if(!confirm('回復為內建預設品項清單？')) return;
   items = DEFAULT_ITEMS.slice(); customFlags = {};
   normalizeItems();
+  localStorage.setItem(LS_VER, ITEMS_VER);
   saveItems(); saveCustom();
   renderCustomList(); renderOrder();
   alert('已回復內建預製品項。');
