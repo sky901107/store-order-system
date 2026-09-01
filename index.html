@@ -652,6 +652,9 @@ const DEFAULT_ITEMS = [{"code": "1", "cat": "零食類", "series": "ADOBLE", "na
 const STORES = ["虎尾","北港","嘉義","高雄","潭子","豐原","屏東","總倉","二崙"];
 const LS_ITEMS="ims_items_v1", LS_CUSTOM="ims_custom_v1", LS_CART="ims_cart_v1_", LS_CUR="ims_cur_v1";
 const ITEMS_VER = '2026-09-01', LS_VER = 'ims_ver_v2';
+/* 大類顏色區分 */
+const CAT_COLORS = {'零食類':'#e07a3f','飲料類':'#2f7fb8','泡麵類':'#3f7d52','百貨類':'#8a5fb0'};
+function catColor(c){ return CAT_COLORS[c] || '#7a7f8d'; }
 
 let items=[], customFlags={}, currentStore="", cart={}, searchText="", activeCat="全部", multiStores=[];
 
@@ -804,7 +807,9 @@ function renderCats(){
   const bar = document.getElementById('catBar');
   bar.innerHTML = ['全部'].concat(cats).map(c=>{
     const n = c==='全部' ? items.length : counts[c];
-    return `<button class="cat-chip ${activeCat===c?'active':''}" onclick="setCat('${c}', true)">${c}<span class="cnt">${n}</span></button>`;
+    const col = c==='全部' ? '#c8322e' : catColor(c);
+    const isActive = activeCat===c;
+    return `<button class="cat-chip ${isActive?'active':''}" style="${isActive?'background:'+col+';border-color:'+col+';color:#fff':''}" onclick="setCat('${c}', true)">${c==='全部'?'':`<span class="dot" style="background:${col}"></span>`}${c}<span class="cnt">${n}</span></button>`;
   }).join('');
   initCatBar();
   updateCatFades();
@@ -841,6 +846,7 @@ function renderOrder(){
   } else {
     document.getElementById('catBannerName').textContent = activeCat;
     document.getElementById('catBannerSub').textContent = `${items.filter(it=>it.cat===activeCat).length} 項品項`;
+    banner.style.background = catColor(activeCat);
     banner.style.display = 'flex';
   }
   const kw = searchText.trim().toLowerCase();
@@ -872,7 +878,7 @@ function renderOrder(){
       const cv = byCat[c];
       const cc = cv.filter(it=>cart[it.code]).length;
       return `<div class="cat-head">
-        <span class="tag">${c}</span>
+        <span class="tag" style="background:${catColor(c)}">${c}</span>
         <span class="sub">${cv.length} 項${cc ? ` ・ 已勾選 ${cc}` : ''}</span>
       </div>` + seriesHTML(cv);
     }).join('');
