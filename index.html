@@ -407,6 +407,11 @@ input{font-family:inherit}
 .hist-search input{width:100%;padding:11px 14px;border:1.5px solid var(--line);border-radius:10px;font-size:14.5px;outline:none;background:var(--card)}
 .hist-search input:focus{border-color:var(--red)}
 .hist-count{font-size:12px;color:var(--ink-3);margin:6px 2px 0}
+ .hist-filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.hist-filters select,.hist-filters input[type=date]{padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:13px;background:var(--card);outline:none;color:var(--ink)}
+.hist-filters input[type=date]{flex:1;min-width:120px}
+.hist-filters select{flex:1;min-width:92px}
+.hist-clear{font-size:12.5px;font-weight:700;color:var(--red);padding:8px 10px;border:1px solid var(--red);border-radius:8px;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -558,6 +563,18 @@ input{font-family:inherit}
     <div class="import-hint">查看各門市已叫貨的品項與日期，勾選「採購已處理」後按儲存。</div>
     <div class="hist-search">
       <input id="histSearch" type="search" placeholder="搜尋門市或品項名稱（如：豐原、小泡芙）…" oninput="onHistSearch(this.value)">
+      <div class="hist-filters">
+        <select id="histStore" onchange="onHistFilter()"></select>
+        <select id="histStatus" onchange="onHistFilter()">
+          <option value="">全部狀態</option>
+          <option value="0">未處理</option>
+          <option value="1">已處理</option>
+        </select>
+        <input type="date" id="histFrom" onchange="onHistFilter()" title="開始日期">
+        <span style="color:var(--ink-3);font-size:13px">～</span>
+        <input type="date" id="histTo" onchange="onHistFilter()" title="結束日期">
+        <button class="hist-clear" onclick="clearHistFilters()">✕ 清除</button>
+      </div>
       <div class="hist-count" id="histCount"></div>
     </div>
     <div class="hist-list" id="histList"></div>
@@ -884,18 +901,48 @@ function submitOrder(){
 }
 let histKeyword = '';
 function onHistSearch(v){ histKeyword = v; renderHist(); }
+function onHistFilter(){ renderHist(); }
+function clearHistFilters(){
+  document.getElementById('histSearch').value='';
+  histKeyword='';
+  document.getElementById('histStore').value='';
+  document.getElementById('histStatus').value='';
+  document.getElementById('histFrom').value='';
+  document.getElementById('histTo').value='';
+  renderHist();
+}
+function histDateOK(r, from, to){
+  const d = String(r.date||'').replace(/\//g,'-');
+  if(from && d < from) return false;
+  if(to && d > to) return false;
+  return true;
+}
+function renderHistStoreOpts(selVal){
+  const h = loadHistory();
+  const stores = [...new Set(h.map(r=>r.store))].sort();
+  const sel = document.getElementById('histStore');
+  sel.innerHTML = '<option value="">全部門市</option>' + stores.map(s=>`<option value="${s}" ${s===selVal?'selected':''}>${s}</option>`).join('');
+}
 function renderHist(){
   const h = loadHistory();
   const kw = histKeyword.trim().toLowerCase();
-  let list = h;
-  if(kw){
-    list = h.filter(r=>{
-      if(r.store.toLowerCase().includes(kw)) return true;
-      return r.items.some(it=>it.name.toLowerCase().includes(kw) || String(it.code).toLowerCase().includes(kw));
-    });
-  }
+  const store = document.getElementById('histStore').value;
+  const status = document.getElementById('histStatus').value;
+  const from = document.getElementById('histFrom').value;
+  const to = document.getElementById('histTo').value;
+  const hasFilter = kw || store || status!=='' || from || to;
+  let list = h.filter(r=>{
+    if(kw){
+      const hit = r.store.toLowerCase().includes(kw) || r.items.some(it=>it.name.toLowerCase().includes(kw) || String(it.code).toLowerCase().includes(kw));
+      if(!hit) return false;
+    }
+    if(store && r.store !== store) return false;
+    if(status!=='' && (r.processed ? '1' : '0') !== status) return false;
+    if(!histDateOK(r, from, to)) return false;
+    return true;
+  });
   const el = document.getElementById('histList');
-  document.getElementById('histCount').textContent = kw ? `找到 ${list.length} 筆（共 ${h.length} 筆）` : `共 ${h.length} 筆`;
+  document.getElementById('histCount').textContent = hasFilter ? `找到 ${list.length} 筆（共 ${h.length} 筆）` : `共 ${h.length} 筆`;
   if(!list.length){
     el.innerHTML = `<div class="empty">${kw ? '找不到符合的記錄' : '尚無歷程記錄。送出叫貨單後會自動記錄。'}</div>`;
   } else {
@@ -922,7 +969,13 @@ function renderHist(){
     }).join('');
   }
 }
-function openHist(){ renderHist(); document.getElementById('histModal').classList.add('open'); }
+function openHist(){
+  const sel = document.getElementById('histStore');
+  const cur = sel ? sel.value : '';
+  renderHistStoreOpts(cur);
+  renderHist();
+  document.getElementById('histModal').classList.add('open');
+}
 function closeHist(){ document.getElementById('histModal').classList.remove('open'); }
 function saveHistChecks(){
   const h = loadHistory();
