@@ -103,6 +103,15 @@ function buildPreviewHTML(){
     `</table>`;
 }
 function dismissBanner(){ document.getElementById('envBanner').style.display = 'none'; }
+function openQr(){ document.getElementById('qrModal').classList.add('open'); }
+function closeQr(){ document.getElementById('qrModal').classList.remove('open'); }
+function copyOrderLink(){
+  const t = 'https://sky901107.github.io/store-order-system/';
+  const done = ()=>{ alert('已複製叫貨連結，可貼給門市。'); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(done).catch(()=>{ legacyCopy(t); done(); });
+  } else { legacyCopy(t); done(); }
+}
 function saveXLSX(wb, filename){
   const out = XLSX.write(wb, {bookType:'xlsx', type:'array'});
   const blob = new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
@@ -445,6 +454,7 @@ input{font-family:inherit}
   <div class="store-grid" id="storeGrid"></div>
   <div class="merge-export">
     <button class="btn btn-ghost" onclick="openMerge()">⬇ 合併匯出多門市總表</button>
+    <button class="btn btn-ghost" style="margin-top:10px" onclick="openQr()">🔗 掃碼叫貨（QR Code）</button>
     <button class="btn btn-ghost" style="margin-top:10px" onclick="openHist()">📜 歷程記錄</button>
   </div>
   <div class="home-foot">
