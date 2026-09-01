@@ -1246,8 +1246,12 @@ function exportExcel(){
     const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
     const week = ['日','一','二','三','四','五','六'][now.getDay()];
     const targets = multiStores.length ? multiStores : [currentStore];
-    const aoa = [];
+    const ds = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+    const mkCols = ws=>{ ws['!cols']=[{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}]; return ws; };
+    const mkMerges = (ws,n)=>{ ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}}].concat(n>2?[{s:{r:2,c:0},e:{r:2,c:4}}]:[]); return ws; };
     if(targets.length > 1){
+      // 總表（跨門市合計）
+      const aoa = [];
       aoa.push(['門市叫貨總表', '', '', '', '']);
       aoa.push(['匯出日期', `${dateStr}（週${week}）`, '', '', '']);
       aoa.push([]);
@@ -1271,8 +1275,25 @@ function exportExcel(){
       aoa.push(['總門市數', targets.length, '', '', '']);
       aoa.push(['總品項數', totalItems, '', '', '']);
       aoa.push(['總數量', totalQty, '', '', '']);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, mkMerges(mkCols(XLSX.utils.aoa_to_sheet(aoa)),2), '總表');
+      // 每間門市獨立工作表頁籤
+      targets.forEach(st=>{
+        const arr = [];
+        arr.push(['門市叫貨單', '', '', '', '']);
+        arr.push(['門市', st, '', '', '']);
+        arr.push(['日期', `${dateStr}（週${week}）`, '', '', '']);
+        arr.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
+        keys.forEach(c=>{ const it=cart[c]; arr.push([st, dateStr, it.code, it.name, it.qty]); });
+        arr.push([]);
+        arr.push(['總品項數', keys.length, '', '', '']);
+        arr.push(['合計數量', keys.reduce((a,c)=>a+cart[c].qty,0), '', '', '']);
+        XLSX.utils.book_append_sheet(wb, mkMerges(mkCols(XLSX.utils.aoa_to_sheet(arr)),3), String(st).slice(0,31));
+      });
       saveCart();
+      saveXLSX(wb, `叫貨單-多店-${ds}.xlsx`);
     } else {
+      const aoa = [];
       aoa.push(['門市叫貨單', '', '', '', '']);
       aoa.push(['門市', targets[0], '', '', '']);
       aoa.push(['日期', `${dateStr}（週${week}）`, '', '', '']);
@@ -1281,15 +1302,13 @@ function exportExcel(){
       aoa.push([]);
       aoa.push(['總品項數', keys.length, '', '', '']);
       aoa.push(['合計數量', keys.reduce((a,c)=>a+cart[c].qty,0), '', '', '']);
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = [{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}];
+      ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}},{s:{r:2,c:0},e:{r:2,c:4}}];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '叫貨單');
+      saveXLSX(wb, `叫貨單-${targets[0]}-${ds}.xlsx`);
     }
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}];
-    ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}},{s:{r:2,c:0},e:{r:2,c:4}}];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, targets.length>1?'合併總表':'叫貨單');
-    const ds = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
-    const fname = targets.length>1 ? `叫貨單-多店-${ds}.xlsx` : `叫貨單-${targets[0]}-${ds}.xlsx`;
-    saveXLSX(wb, fname);
   }, ()=>{ exportCSV(); });
 }
 
