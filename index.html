@@ -1286,10 +1286,18 @@ function getCartStats(cartObj){
 }
 function xlBorder(){
   return {
-    top:{style:'thin',color:{argb:'FFE4DCC8'}},
-    left:{style:'thin',color:{argb:'FFE4DCC8'}},
-    bottom:{style:'thin',color:{argb:'FFE4DCC8'}},
-    right:{style:'thin',color:{argb:'FFE4DCC8'}}
+    top:{style:'thin',color:{argb:'FFDCCFB3'}},
+    left:{style:'thin',color:{argb:'FFDCCFB3'}},
+    bottom:{style:'thin',color:{argb:'FFDCCFB3'}},
+    right:{style:'thin',color:{argb:'FFDCCFB3'}}
+  };
+}
+function xlCardBorder(){
+  return {
+    top:{style:'medium',color:{argb:'FFB98A4E'}},
+    left:{style:'medium',color:{argb:'FFB98A4E'}},
+    bottom:{style:'medium',color:{argb:'FFB98A4E'}},
+    right:{style:'medium',color:{argb:'FFB98A4E'}}
   };
 }
 function xlStyle(cell, opts={}){
@@ -1307,19 +1315,20 @@ function xlMergeLabel(ws, range, text, fill, fontOpts, alignOpts){
 }
 function addStoreCardBlock(wb, ws, rowNo, store, dateLabel, cartObj){
   const stats = getCartStats(cartObj);
-  ws.getRow(rowNo).height = 88;
-  ws.getRow(rowNo+1).height = 28;
-  ws.getRow(rowNo+2).height = 28;
-  ws.getRow(rowNo+3).height = 10;
+  const cardBorder = xlCardBorder();
+  ws.getRow(rowNo).height = 96;
+  ws.getRow(rowNo+1).height = 32;
+  ws.getRow(rowNo+2).height = 32;
+  ws.getRow(rowNo+3).height = 12;
   for(let r=rowNo; r<=rowNo+2; r++){
-    for(let c=1; c<=5; c++) xlStyle(ws.getCell(r,c), {fill:'FFFFFBF6', alignment:{horizontal:'left'}});
+    for(let c=1; c<=5; c++) xlStyle(ws.getCell(r,c), {fill:'FFFFFBF6', alignment:{horizontal:'left'}, border:cardBorder});
   }
   ws.mergeCells(`A${rowNo}:B${rowNo+2}`);
-  xlStyle(ws.getCell(`A${rowNo}`), {fill:'FFFFF7EA', alignment:{horizontal:'center', vertical:'middle'}});
+  xlStyle(ws.getCell(`A${rowNo}`), {fill:'FFFFF7EA', alignment:{horizontal:'center', vertical:'middle'}, border:cardBorder});
   if(STORE_IMG[store]){
     const ext = STORE_IMG[store].startsWith('data:image/png') ? 'png' : 'jpeg';
     const imgId = wb.addImage({base64: STORE_IMG[store], extension: ext});
-    ws.addImage(imgId, {tl:{col:0.15,row:rowNo-1+0.15}, ext:{width:150,height:112}, editAs:'oneCell'});
+    ws.addImage(imgId, {tl:{col:0.55,row:rowNo-1+0.18}, ext:{width:120,height:120}, editAs:'oneCell'});
   }
   xlMergeLabel(ws, `C${rowNo}:E${rowNo}`, `門市：${store}`, 'FFF7E4E1', {bold:true, size:14, color:{argb:'FFC8322E'}}, {horizontal:'left'});
   xlMergeLabel(ws, `C${rowNo+1}:E${rowNo+1}`, `叫貨日期：${dateLabel}`, 'FFF3EEE1', {bold:true, size:11}, {horizontal:'left'});
