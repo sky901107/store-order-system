@@ -23,6 +23,23 @@ function ensureXLSX(onOk, onFail){
     document.head.appendChild(s);
   })();
 }
+function ensureExcelJS(onOk, onFail){
+  if(typeof ExcelJS!=='undefined'){ onOk(); return; }
+  const urls = [
+    'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js',
+    'https://unpkg.com/exceljs@4.4.0/dist/exceljs.min.js'
+  ];
+  let i = 0;
+  (function tryNext(){
+    if(i>=urls.length){ onFail && onFail(); return; }
+    const t = document.createElement('script');
+    t.src = urls[i++];
+    t.onload = ()=>{ if(typeof ExcelJS!=='undefined') onOk(); else tryNext(); };
+    t.onerror = ()=>{ tryNext(); };
+    document.head.appendChild(t);
+  })();
+}
+
 /* 自訂下載：自動下載＋若環境阻擋則顯示手動儲存面板 */
 let saveBlobUrl='', saveFilename='', saveCsvText='';
 function downloadBlob(blob, filename){
@@ -1259,6 +1276,130 @@ function resetItems(){
   alert('已回復內建預製品項。');
 }
 
+
+function getCartStats(cartObj){
+  const keys = Object.keys(cartObj || {});
+  return {
+    itemCount: keys.length,
+    totalQty: keys.reduce((a,k)=>a + Number((cartObj[k] && cartObj[k].qty) || 0), 0)
+  };
+}
+function xlBorder(){
+  return {
+    top:{style:'thin',color:{argb:'FFE4DCC8'}},
+    left:{style:'thin',color:{argb:'FFE4DCC8'}},
+    bottom:{style:'thin',color:{argb:'FFE4DCC8'}},
+    right:{style:'thin',color:{argb:'FFE4DCC8'}}
+  };
+}
+function xlStyle(cell, opts={}){
+  cell.font = Object.assign({name:'Microsoft JhengHei', size:11, color:{argb:'FF23262F'}}, opts.font||{});
+  cell.alignment = Object.assign({vertical:'middle', wrapText:true}, opts.alignment||{});
+  cell.border = opts.border || xlBorder();
+  if(opts.fill){ cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:opts.fill}}; }
+}
+function xlMergeLabel(ws, range, text, fill, fontOpts, alignOpts){
+  ws.mergeCells(range);
+  const cell = ws.getCell(range.split(':')[0]);
+  cell.value = text;
+  xlStyle(cell, {fill:fill, font:fontOpts||{}, alignment:alignOpts||{horizontal:'left'}});
+  return cell;
+}
+function addStoreCardBlock(wb, ws, rowNo, store, dateLabel, cartObj){
+  const stats = getCartStats(cartObj);
+  ws.getRow(rowNo).height = 62;
+  ws.getRow(rowNo+1).height = 23;
+  ws.getRow(rowNo+2).height = 23;
+  for(let r=rowNo; r<=rowNo+2; r++){
+    for(let c=1; c<=5; c++) xlStyle(ws.getCell(r,c), {fill:'FFFFFDF7'});
+  }
+  if(STORE_IMG[store]){
+    const ext = STORE_IMG[store].startsWith('data:image/png') ? 'png' : 'jpeg';
+    const imgId = wb.addImage({base64: STORE_IMG[store], extension: ext});
+    ws.addImage(imgId, `A${rowNo}:A${rowNo+2}`);
+  }
+  xlMergeLabel(ws, `B${rowNo}:E${rowNo}`, `${store} 水彩代表圖`, 'FFF7E4E1', {bold:true, size:13, color:{argb:'FFC8322E'}}, {horizontal:'left'});
+  xlMergeLabel(ws, `B${rowNo+1}:E${rowNo+1}`, `叫貨日期：${dateLabel}`, 'FFF3EEE1', {bold:true}, {horizontal:'left'});
+  xlMergeLabel(ws, `B${rowNo+2}:E${rowNo+2}`, `總品項數：${stats.itemCount}　合計數量：${stats.totalQty}`, 'FFFFFDF7', {}, {horizontal:'left'});
+  return rowNo + 4;
+}
+function addStoreDetailSheet(wb, storeData){
+  const ws = wb.addWorksheet(String(storeData.store).slice(0,31));
+  ws.columns = [{width:18},{width:14},{width:14},{width:48},{width:10}];
+  xlMergeLabel(ws, 'A1:E1', '門市叫貨單', 'FFC8322E', {bold:true, size:16, color:{argb:'FFFFFFFF'}}, {horizontal:'center'});
+  xlMergeLabel(ws, 'A2:E2', `門市：${storeData.store}`, 'FFF3EEE1', {bold:true}, {horizontal:'left'});
+  xlMergeLabel(ws, 'A3:E3', `日期：${storeData.dateLabel}`, 'FFF3EEE1', {bold:true}, {horizontal:'left'});
+  let row = 5;
+  row = addStoreCardBlock(wb, ws, row, storeData.store, storeData.dateLabel, storeData.cart);
+  const headerRow = row;
+  ws.addRow(['門市','日期','品項編碼','品項名稱[規格]','數量']);
+  for(let c=1;c<=5;c++) xlStyle(ws.getCell(headerRow,c), {fill:'FFC8322E', font:{bold:true, color:{argb:'FFFFFFFF'}}, alignment:{horizontal:'center'}});
+  Object.keys(storeData.cart).forEach(code=>{
+    const it = storeData.cart[code];
+    ws.addRow([storeData.store, storeData.dateLabel, it.code, it.name, it.qty]);
+  });
+  for(let r=headerRow+1; r<=ws.rowCount; r++){
+    for(let c=1;c<=5;c++) xlStyle(ws.getCell(r,c), {fill:'FFFFFFFF'});
+  }
+  ws.addRow([]);
+  const stats = getCartStats(storeData.cart);
+  ws.addRow(['總品項數', stats.itemCount, '', '', '']);
+  ws.addRow(['合計數量', stats.totalQty, '', '', '']);
+  for(let r=ws.rowCount-1; r<=ws.rowCount; r++){
+    for(let c=1;c<=5;c++) xlStyle(ws.getCell(r,c), {fill:'FFE7EFE8', font:{bold:c<=2}});
+  }
+}
+function buildStoreImageWorkbook(opts){
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Genspark';
+  wb.created = new Date();
+  const ws = wb.addWorksheet(opts.summaryName || '總表');
+  ws.columns = [{width:18},{width:16},{width:14},{width:48},{width:10}];
+  xlMergeLabel(ws, 'A1:E1', opts.title, 'FFC8322E', {bold:true, size:16, color:{argb:'FFFFFFFF'}}, {horizontal:'center'});
+  xlMergeLabel(ws, 'A2:E2', `匯出日期：${opts.exportDateLabel}`, 'FFF3EEE1', {bold:true}, {horizontal:'left'});
+  let row = 4;
+  xlMergeLabel(ws, `A${row}:E${row}`, '各門市水彩代表圖與叫貨日期', 'FFFAF0D7', {bold:true, color:{argb:'FF7A5A2A'}}, {horizontal:'left'});
+  row++;
+  const agg = {};
+  let totalItems = 0, totalQty = 0;
+  opts.storesData.forEach(storeData=>{
+    row = addStoreCardBlock(wb, ws, row, storeData.store, storeData.dateLabel, storeData.cart);
+    Object.keys(storeData.cart).forEach(code=>{
+      const it = storeData.cart[code];
+      totalItems++;
+      totalQty += Number(it.qty || 0);
+      if(!agg[it.code]) agg[it.code] = {name:it.name, qty:0};
+      agg[it.code].qty += Number(it.qty || 0);
+    });
+  });
+  row++;
+  const headerRow = row;
+  ws.addRow(['門市','日期','品項編碼','品項名稱[規格]','數量']);
+  for(let c=1;c<=5;c++) xlStyle(ws.getCell(headerRow,c), {fill:'FFC8322E', font:{bold:true, color:{argb:'FFFFFFFF'}}, alignment:{horizontal:'center'}});
+  opts.storesData.forEach(storeData=>{
+    Object.keys(storeData.cart).forEach(code=>{
+      const it = storeData.cart[code];
+      ws.addRow([storeData.store, storeData.dateLabel, it.code, it.name, it.qty]);
+    });
+  });
+  for(let r=headerRow+1; r<=ws.rowCount; r++) for(let c=1;c<=5;c++) xlStyle(ws.getCell(r,c), {fill:'FFFFFFFF'});
+  row = ws.rowCount + 2;
+  xlMergeLabel(ws, `A${row}:E${row}`, '品項合計（跨門市）', 'FFFAF0D7', {bold:true, color:{argb:'FF7A5A2A'}}, {horizontal:'left'});
+  row++;
+  const aggHeaderRow = row;
+  ws.addRow(['品項編碼','品項名稱[規格]','合計數量','','']);
+  for(let c=1;c<=5;c++) xlStyle(ws.getCell(aggHeaderRow,c), {fill:'FFC8322E', font:{bold:true, color:{argb:'FFFFFFFF'}}, alignment:{horizontal:'center'}});
+  Object.keys(agg).forEach(code=>ws.addRow([code, agg[code].name, agg[code].qty, '', '']));
+  for(let r=aggHeaderRow+1; r<=ws.rowCount; r++) for(let c=1;c<=5;c++) xlStyle(ws.getCell(r,c), {fill:'FFFFFFFF'});
+  ws.addRow([]);
+  ws.addRow(['總門市數', opts.storesData.length, '', '', '']);
+  ws.addRow(['總品項數', totalItems, '', '', '']);
+  ws.addRow(['總數量', totalQty, '', '', '']);
+  for(let r=ws.rowCount-2; r<=ws.rowCount; r++) for(let c=1;c<=5;c++) xlStyle(ws.getCell(r,c), {fill:'FFE7EFE8', font:{bold:c<=2}});
+  if(opts.includeStoreSheets) opts.storesData.forEach(storeData=>addStoreDetailSheet(wb, storeData));
+  return wb;
+}
+
 /* ================= 匯出 Excel ================= */
 function exportExcel(){
   const keys = Object.keys(cart);
@@ -1267,58 +1408,76 @@ function exportExcel(){
     const now = new Date();
     const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
     const week = ['日','一','二','三','四','五','六'][now.getDay()];
+    const dateLabel = `${dateStr}（週${week}）`;
     const targets = multiStores.length ? multiStores : [currentStore];
     const ds = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
     const mkCols = ws=>{ ws['!cols']=[{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}]; return ws; };
     const mkMerges = (ws,n)=>{ ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}}].concat(n>2?[{s:{r:2,c:0},e:{r:2,c:4}}]:[]); return ws; };
     if(targets.length > 1){
-      // 總表（跨門市合計）
-      const aoa = [];
-      aoa.push(['門市叫貨總表', '', '', '', '']);
-      aoa.push(['匯出日期', `${dateStr}（週${week}）`, '', '', '']);
-      aoa.push([]);
-      aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
-      let totalItems=0, totalQty=0;
-      const agg = {};
-      targets.forEach(st=>{
-        keys.forEach(c=>{
-          const it=cart[c];
-          aoa.push([st, dateStr, it.code, it.name, it.qty]);
-          totalItems++; totalQty += it.qty;
-          if(!agg[it.code]) agg[it.code] = {name:it.name, qty:0};
-          agg[it.code].qty += it.qty;
+      const buildClassic = ()=>{
+        const aoa = [];
+        aoa.push(['門市叫貨總表', '', '', '', '']);
+        aoa.push(['匯出日期', dateLabel, '', '', '']);
+        aoa.push([]);
+        aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
+        let totalItems=0, totalQty=0;
+        const agg = {};
+        targets.forEach(st=>{
+          keys.forEach(c=>{
+            const it=cart[c];
+            aoa.push([st, dateStr, it.code, it.name, it.qty]);
+            totalItems++; totalQty += it.qty;
+            if(!agg[it.code]) agg[it.code] = {name:it.name, qty:0};
+            agg[it.code].qty += it.qty;
+          });
         });
-      });
-      aoa.push([]);
-      aoa.push(['品項合計（跨門市）', '', '', '', '']);
-      aoa.push(['品項編碼','品項名稱[規格]','合計數量','','']);
-      Object.keys(agg).forEach(code=>aoa.push([code, agg[code].name, agg[code].qty, '', '']));
-      aoa.push([]);
-      aoa.push(['總門市數', targets.length, '', '', '']);
-      aoa.push(['總品項數', totalItems, '', '', '']);
-      aoa.push(['總數量', totalQty, '', '', '']);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, mkMerges(mkCols(XLSX.utils.aoa_to_sheet(aoa)),2), '總表');
-      // 每間門市獨立工作表頁籤
-      targets.forEach(st=>{
-        const arr = [];
-        arr.push(['門市叫貨單', '', '', '', '']);
-        arr.push(['門市', st, '', '', '']);
-        arr.push(['日期', `${dateStr}（週${week}）`, '', '', '']);
-        arr.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
-        keys.forEach(c=>{ const it=cart[c]; arr.push([st, dateStr, it.code, it.name, it.qty]); });
-        arr.push([]);
-        arr.push(['總品項數', keys.length, '', '', '']);
-        arr.push(['合計數量', keys.reduce((a,c)=>a+cart[c].qty,0), '', '', '']);
-        XLSX.utils.book_append_sheet(wb, mkMerges(mkCols(XLSX.utils.aoa_to_sheet(arr)),3), String(st).slice(0,31));
-      });
-      saveCart();
-      saveXLSX(wb, `叫貨單-多店-${ds}.xlsx`);
+        aoa.push([]);
+        aoa.push(['品項合計（跨門市）', '', '', '', '']);
+        aoa.push(['品項編碼','品項名稱[規格]','合計數量','','']);
+        Object.keys(agg).forEach(code=>aoa.push([code, agg[code].name, agg[code].qty, '', '']));
+        aoa.push([]);
+        aoa.push(['總門市數', targets.length, '', '', '']);
+        aoa.push(['總品項數', totalItems, '', '', '']);
+        aoa.push(['總數量', totalQty, '', '', '']);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, mkMerges(mkCols(XLSX.utils.aoa_to_sheet(aoa)),2), '總表');
+        targets.forEach(st=>{
+          const arr = [];
+          arr.push(['門市叫貨單', '', '', '', '']);
+          arr.push(['門市', st, '', '', '']);
+          arr.push(['日期', dateLabel, '', '', '']);
+          arr.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
+          keys.forEach(c=>{ const it=cart[c]; arr.push([st, dateStr, it.code, it.name, it.qty]); });
+          arr.push([]);
+          arr.push(['總品項數', keys.length, '', '', '']);
+          arr.push(['合計數量', keys.reduce((a,c)=>a+cart[c].qty,0), '', '', '']);
+          XLSX.utils.book_append_sheet(wb, mkMerges(mkCols(XLSX.utils.aoa_to_sheet(arr)),3), String(st).slice(0,31));
+        });
+        saveCart();
+        saveXLSX(wb, `叫貨單-多店-${ds}.xlsx`);
+      };
+      ensureExcelJS(async ()=>{
+        try{
+          const storesData = targets.map(st=>({
+            store: st,
+            dateLabel,
+            cart: Object.fromEntries(keys.map(c=>[c, {code:cart[c].code, name:cart[c].name, qty:cart[c].qty}]))
+          }));
+          const wb = buildStoreImageWorkbook({summaryName:'總表', title:'門市叫貨總表', exportDateLabel:dateLabel, storesData, includeStoreSheets:true});
+          const buf = await wb.xlsx.writeBuffer();
+          saveCart();
+          downloadBlob(new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), `叫貨單-多店-${ds}.xlsx`);
+        }catch(e){
+          console.error(e);
+          buildClassic();
+          alert('水彩代表圖 Excel 匯出失敗，已改用一般 Excel。');
+        }
+      }, buildClassic);
     } else {
       const aoa = [];
       aoa.push(['門市叫貨單', '', '', '', '']);
       aoa.push(['門市', targets[0], '', '', '']);
-      aoa.push(['日期', `${dateStr}（週${week}）`, '', '', '']);
+      aoa.push(['日期', dateLabel, '', '', '']);
       aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
       keys.forEach(c=>{ const it=cart[c]; aoa.push([targets[0], dateStr, it.code, it.name, it.qty]); });
       aoa.push([]);
@@ -1355,41 +1514,58 @@ function doMergeExport(){
     const now = new Date();
     const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
     const week = ['日','一','二','三','四','五','六'][now.getDay()];
-    const aoa = [];
-    aoa.push(['門市叫貨總表', '', '', '', '']);
-    aoa.push(['匯出日期', `${dateStr}（週${week}）`, '', '', '']);
-    aoa.push([]);
-    aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
-    let totalItems=0, totalQty=0;
-    const agg = {};
-    stores.forEach(s=>{
-      let cart={}; try{ cart = JSON.parse(localStorage.getItem(LS_CART+s)||'{}'); }catch(e){ cart={}; }
-      Object.keys(cart).forEach(c=>{
-        const it = cart[c];
-        aoa.push([s, dateStr, it.code, it.name, it.qty]);
-        totalItems++; totalQty += it.qty;
-        if(!agg[it.code]) agg[it.code] = {name: it.name, qty: 0};
-        agg[it.code].qty += it.qty;
-      });
-    });
-    aoa.push([]);
-    aoa.push(['品項合計（跨門市）', '', '', '', '']);
-    aoa.push(['品項編碼','品項名稱[規格]','合計數量','','']);
-    Object.keys(agg).forEach(code=>{
-      aoa.push([code, agg[code].name, agg[code].qty, '', '']);
-    });
-    aoa.push([]);
-    aoa.push(['總門市數', stores.length, '', '', '']);
-    aoa.push(['總品項數', totalItems, '', '', '']);
-    aoa.push(['總數量', totalQty, '', '', '']);
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}];
-    ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}}];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '合併總表');
+    const dateLabel = `${dateStr}（週${week}）`;
     const ds = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
-    saveXLSX(wb, `門市叫貨總表-${ds}.xlsx`);
-    closeMerge();
+    const buildClassic = ()=>{
+      const aoa = [];
+      aoa.push(['門市叫貨總表', '', '', '', '']);
+      aoa.push(['匯出日期', dateLabel, '', '', '']);
+      aoa.push([]);
+      aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
+      let totalItems=0, totalQty=0;
+      const agg = {};
+      stores.forEach(s=>{
+        let cart={}; try{ cart = JSON.parse(localStorage.getItem(LS_CART+s)||'{}'); }catch(e){ cart={}; }
+        Object.keys(cart).forEach(c=>{
+          const it = cart[c];
+          aoa.push([s, dateStr, it.code, it.name, it.qty]);
+          totalItems++; totalQty += it.qty;
+          if(!agg[it.code]) agg[it.code] = {name: it.name, qty: 0};
+          agg[it.code].qty += it.qty;
+        });
+      });
+      aoa.push([]);
+      aoa.push(['品項合計（跨門市）', '', '', '', '']);
+      aoa.push(['品項編碼','品項名稱[規格]','合計數量','','']);
+      Object.keys(agg).forEach(code=>aoa.push([code, agg[code].name, agg[code].qty, '', '']));
+      aoa.push([]);
+      aoa.push(['總門市數', stores.length, '', '', '']);
+      aoa.push(['總品項數', totalItems, '', '', '']);
+      aoa.push(['總數量', totalQty, '', '', '']);
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = [{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}];
+      ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}}];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '合併總表');
+      saveXLSX(wb, `門市叫貨總表-${ds}.xlsx`);
+      closeMerge();
+    };
+    ensureExcelJS(async ()=>{
+      try{
+        const storesData = stores.map(s=>{
+          let cartObj={}; try{ cartObj = JSON.parse(localStorage.getItem(LS_CART+s)||'{}'); }catch(e){ cartObj={}; }
+          return {store:s, dateLabel, cart:cartObj};
+        });
+        const wb = buildStoreImageWorkbook({summaryName:'合併總表', title:'門市叫貨總表', exportDateLabel:dateLabel, storesData, includeStoreSheets:false});
+        const buf = await wb.xlsx.writeBuffer();
+        downloadBlob(new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), `門市叫貨總表-${ds}.xlsx`);
+        closeMerge();
+      }catch(e){
+        console.error(e);
+        buildClassic();
+        alert('水彩代表圖 Excel 匯出失敗，已改用一般 Excel。');
+      }
+    }, buildClassic);
   }, ()=>{ exportCSV(); });
 }
 
