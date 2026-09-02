@@ -274,6 +274,9 @@ input{font-family:inherit}
 .vendor-qtybox{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2)}
 .vendor-qtybox input{width:62px;padding:6px 6px;border:1.5px solid var(--line);border-radius:8px;font-size:14px;font-weight:700;text-align:center;background:#fff;color:var(--ink)}
 .vendor-qtybox input:focus{border-color:var(--red);outline:none}
+.vendor-cat-head{display:flex;align-items:center;gap:8px;margin:10px 2px 8px;padding-top:8px;border-top:1px dashed var(--line)}
+.vendor-cat-tag{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;color:#fff;font-size:12px;font-weight:800}
+.vendor-cat-count{font-size:12px;color:var(--ink-3)}
 .cats-wrap{position:sticky;top:134px;z-index:29;margin-bottom:6px}
 .cats{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;cursor:grab;scrollbar-width:thin;scrollbar-color:var(--gold) transparent}
 .cats::-webkit-scrollbar{height:6px}
@@ -875,10 +878,17 @@ function queryVendors(){
   panel.classList.add('open');
 }
 function renderVendorTraceList(vendor, rows){
-  return `<div class="vendor-tools"><button class="vendor-backbtn" onclick="queryVendors()">← 回查詢結果</button></div>` + rows.map(it=>{
-    const on = !!cart[it.code];
-    const qtyVal = on ? cart[it.code].qty : '';
-    return `<div class="vendor-item vendor-pick ${on?'on':''}"><div class="top"><div><div class="code">${it.code}</div><div class="name">${it.name}</div></div><button type="button" class="vendor-add ${on?'on':''}" data-code="${escAttr(it.code)}" onclick="toggleVendorLookupItem(this.dataset.code)">${on?'✓ 已加入':'＋ 加入清單'}</button></div><div class="vendor-meta">類別：${it.cat || '其他'}｜系列：${it.series || '其他'}</div><div class="vendor-foot"><div class="vendor-tags"><button type="button" class="vendor-tag vendor-tag-btn" data-vendor="${escAttr(vendor)}" onclick="traceVendor(this.dataset.vendor)">${vendor}</button></div><label class="vendor-qtybox">數量 <input type="number" min="0" inputmode="numeric" value="${qtyVal}" data-code="${escAttr(it.code)}" oninput="onVendorLookupQty(this.dataset.code, this.value)"></label></div></div>`;
+  const byCat = {};
+  rows.forEach(it=>{ (byCat[it.cat || '其他']=byCat[it.cat || '其他']||[]).push(it); });
+  const cats = Object.keys(byCat).sort((a,b)=>byCat[b].length-byCat[a].length);
+  return `<div class="vendor-tools"><button class="vendor-backbtn" onclick="queryVendors()">← 回查詢結果</button></div>` + cats.map(cat=>{
+    const col = catColor(cat);
+    const catRows = byCat[cat];
+    return `<div class="vendor-cat-head"><span class="vendor-cat-tag" style="background:${col}">${cat}</span><span class="vendor-cat-count">共 ${catRows.length} 項</span></div>` + catRows.map(it=>{
+      const on = !!cart[it.code];
+      const qtyVal = on ? cart[it.code].qty : '';
+      return `<div class="vendor-item vendor-pick ${on?'on':''}"><div class="top"><div><div class="code">${it.code}</div><div class="name">${it.name}</div></div><button type="button" class="vendor-add ${on?'on':''}" data-code="${escAttr(it.code)}" onclick="toggleVendorLookupItem(this.dataset.code)">${on?'✓ 已加入':'＋ 加入清單'}</button></div><div class="vendor-meta">類別：${it.cat || '其他'}｜系列：${it.series || '其他'}</div><div class="vendor-foot"><div class="vendor-tags"><button type="button" class="vendor-tag vendor-tag-btn" data-vendor="${escAttr(vendor)}" onclick="traceVendor(this.dataset.vendor)">${vendor}</button></div><label class="vendor-qtybox">數量 <input type="number" min="0" inputmode="numeric" value="${qtyVal}" data-code="${escAttr(it.code)}" oninput="onVendorLookupQty(this.dataset.code, this.value)"></label></div></div>`;
+    }).join('');
   }).join('');
 }
 function traceVendor(vendor){
