@@ -278,6 +278,13 @@ input{font-family:inherit}
 .vendor-auth-note{font-size:12px;color:var(--ink-3);margin-top:8px}
 .vendor-lookup-box input{width:100%;padding:13px 16px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);font-size:15px;outline:none;transition:border-color .15s}
 .vendor-lookup-box input:focus{border-color:var(--red)}
+body.vendor-lookup-open{overflow:hidden}
+#vendorLookupModal{align-items:stretch;justify-content:stretch}
+#vendorLookupModal .modal{width:100vw;max-width:none;height:100dvh;max-height:none;border-radius:0;padding:18px 16px calc(20px + env(safe-area-inset-bottom));animation:none}
+#vendorLookupModal .vendor-lookup-box{position:sticky;top:0;z-index:3;background:var(--card);padding-bottom:10px}
+#vendorLookupModal .vendor-head{position:sticky;top:74px;z-index:2;background:var(--card);padding:10px 0 8px;margin-top:0;border-bottom:1px solid var(--line)}
+#vendorLookupModal .vendor-list{padding-top:10px;padding-bottom:18px}
+@media(min-width:980px){#vendorLookupModal{justify-content:flex-end;align-items:stretch;background:rgba(35,38,47,.22)}#vendorLookupModal .modal{width:min(540px,38vw);height:100vh;max-height:100vh;margin-left:auto;border-radius:24px 0 0 24px;box-shadow:-18px 0 42px rgba(35,38,47,.2);border-left:1px solid var(--line)}}
 .pw-input{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);font-size:16px;outline:none;letter-spacing:2px;text-align:center;margin:8px 0 10px}
 .pw-input:focus{border-color:var(--red)}
 .pw-error{font-size:12px;color:var(--red);min-height:18px;margin-bottom:8px}
@@ -891,15 +898,17 @@ function openVendorLookup(prefill){
   activeVendor = '';
   activeVendorCats = {};
   vendorSearchText = typeof prefill === 'string' ? prefill : (vendorSearchText || '');
+  if(modal) modal.classList.add('open');
+  document.body.classList.add('vendor-lookup-open');
   if(input){ input.value = vendorSearchText; setTimeout(()=>input.focus(), 60); }
   renderVendorLookup();
-  if(modal) modal.classList.add('open');
 }
 function closeVendorLookup(){
   activeVendor = '';
   activeVendorCats = {};
   const modal = document.getElementById('vendorLookupModal');
   if(modal) modal.classList.remove('open');
+  document.body.classList.remove('vendor-lookup-open');
 }
 function submitVendorPassword(){
   const input = document.getElementById('vendorPwInput');
