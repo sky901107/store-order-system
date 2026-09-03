@@ -1774,21 +1774,39 @@ function exportExcel(){
         }
       }, buildClassic);
     } else {
-      const aoa = [];
-      aoa.push(['門市叫貨單', '', '', '', '']);
-      aoa.push(['門市', targets[0], '', '', '']);
-      aoa.push(['日期', dateLabel, '', '', '']);
-      aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
-      keys.forEach(c=>{ const it=cart[c]; aoa.push([targets[0], dateStr, it.code, it.name, it.qty]); });
-      aoa.push([]);
-      aoa.push(['總品項數', keys.length, '', '', '']);
-      aoa.push(['合計數量', keys.reduce((a,c)=>a+cart[c].qty,0), '', '', '']);
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
-      ws['!cols'] = [{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}];
-      ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}},{s:{r:2,c:0},e:{r:2,c:4}}];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, '叫貨單');
-      saveXLSX(wb, `叫貨單-${targets[0]}-${ds}.xlsx`);
+      const buildClassicSingle = ()=>{
+        const aoa = [];
+        aoa.push(['門市叫貨單', '', '', '', '']);
+        aoa.push(['門市', targets[0], '', '', '']);
+        aoa.push(['日期', dateLabel, '', '', '']);
+        aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
+        keys.forEach(c=>{ const it=cart[c]; aoa.push([targets[0], dateStr, it.code, it.name, it.qty]); });
+        aoa.push([]);
+        aoa.push(['總品項數', keys.length, '', '', '']);
+        aoa.push(['合計數量', keys.reduce((a,c)=>a+cart[c].qty,0), '', '', '']);
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        ws['!cols'] = [{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}];
+        ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}},{s:{r:2,c:0},e:{r:2,c:4}}];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '叫貨單');
+        saveXLSX(wb, `叫貨單-${targets[0]}-${ds}.xlsx`);
+      };
+      ensureExcelJS(async ()=>{
+        try{
+          const storesData = [{
+            store: targets[0],
+            dateLabel,
+            cart: Object.fromEntries(keys.map(c=>[c, {code:cart[c].code, name:cart[c].name, qty:cart[c].qty}]))
+          }];
+          const wb = buildStoreImageWorkbook({summaryName:'叫貨單', title:'門市叫貨單', exportDateLabel:dateLabel, storesData, includeStoreSheets:false});
+          const buf = await wb.xlsx.writeBuffer();
+          downloadBlob(new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), `叫貨單-${targets[0]}-${ds}.xlsx`);
+        }catch(e){
+          console.error(e);
+          buildClassicSingle();
+          alert('門市代表圖 Excel 匯出失敗，已改用一般 Excel。');
+        }
+      }, buildClassicSingle);
     }
   }, ()=>{ exportCSV(); });
 }
