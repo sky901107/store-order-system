@@ -412,10 +412,9 @@ body.vendor-resizing{cursor:ew-resize;user-select:none}
 .qty-stepper button:active{background:var(--red);color:#fff;border-color:var(--red)}
 .qty-stepper b{min-width:30px;text-align:center;font-size:16px}
 .review-actions{display:flex;flex-direction:column;gap:10px;margin-top:20px}
-.review-primary-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.review-primary-actions .btn{width:100%;padding:15px 12px;font-size:15px}
+.review-primary-actions{display:block}
+.review-primary-actions .btn{width:100%;padding:15px 12px;font-size:16px}
 .review-actions .btn{width:100%;padding:14px;font-size:16px}
-@media(max-width:520px){.review-primary-actions{grid-template-columns:1fr}}
 
 /* ===== Modal ===== */
 .modal-back{
@@ -631,8 +630,7 @@ body.vendor-resizing{cursor:ew-resize;user-select:none}
   <div class="rv-list" id="reviewList"></div>
   <div class="review-actions">
     <div class="review-primary-actions">
-      <button class="btn btn-green" onclick="exportExcel()">⬇ 匯出品項 Excel 總表</button>
-      <button class="btn btn-primary" onclick="submitOrder()">📤 送出叫貨單</button>
+      <button class="btn btn-primary" onclick="confirmAndExportOrder()">✅ 確認並匯出EXCEL總表</button>
     </div>
     <button class="btn btn-ghost" onclick="goHome()">回主頁</button>
     <button class="btn btn-ghost" onclick="clearCart()">清除叫貨</button>
@@ -1304,6 +1302,10 @@ function clearCart(){
 const LS_HIST = "ims_history_v1";
 function loadHistory(){ try{ return JSON.parse(localStorage.getItem(LS_HIST)) || []; }catch(e){ return []; } }
 function saveHistory(h){ localStorage.setItem(LS_HIST, JSON.stringify(h)); }
+function confirmAndExportOrder(){
+  exportExcel();
+  submitOrder();
+}
 function submitOrder(){
   const keys = Object.keys(cart);
   if(!keys.length){ alert('目前沒有叫貨品項。'); return; }
