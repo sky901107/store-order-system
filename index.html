@@ -31,7 +31,11 @@ function ensureExcelJS(onOk, onFail){
   ];
   let i = 0;
   (function tryNext(){
-    if(i>=urls.length){ onFail && onFail(); return; }
+    if(i>=urls.length){
+      alert('圖片版 Excel 模組載入失敗，因此無法輸出含圖片的 Excel。請檢查網路後再試一次。');
+      onFail && onFail();
+      return;
+    }
     const t = document.createElement('script');
     t.src = urls[i++];
     t.onload = ()=>{ if(typeof ExcelJS!=='undefined') onOk(); else tryNext(); };
@@ -1302,8 +1306,9 @@ function clearCart(){
 const LS_HIST = "ims_history_v1";
 function loadHistory(){ try{ return JSON.parse(localStorage.getItem(LS_HIST)) || []; }catch(e){ return []; } }
 function saveHistory(h){ localStorage.setItem(LS_HIST, JSON.stringify(h)); }
-function confirmAndExportOrder(){
-  exportExcel();
+async function confirmAndExportOrder(){
+  const ok = await exportExcel();
+  if(ok===false) return;
   submitOrder();
 }
 function submitOrder(){
@@ -1703,112 +1708,33 @@ function buildStoreImageWorkbook(opts){
 /* ================= 匯出 Excel ================= */
 function exportExcel(){
   const keys = Object.keys(cart);
-  if(!keys.length){ alert('尚未勾選任何品項，無法匯出。'); return; }
-  ensureXLSX(()=>{
+  if(!keys.length){ alert('尚未勾選任何品項，無法匯出。'); return Promise.resolve(false); }
+  return new Promise((resolve)=>{
     const now = new Date();
     const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
     const week = ['日','一','二','三','四','五','六'][now.getDay()];
     const dateLabel = `${dateStr}（週${week}）`;
     const targets = multiStores.length ? multiStores : [currentStore];
     const ds = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
-    const mkCols = ws=>{ ws['!cols']=[{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}]; return ws; };
-    const mkMerges = (ws,n)=>{ ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}}].concat(n>2?[{s:{r:2,c:0},e:{r:2,c:4}}]:[]); return ws; };
-    if(targets.length > 1){
-      const buildClassic = ()=>{
-        const aoa = [];
-        aoa.push(['門市叫貨總表', '', '', '', '']);
-        aoa.push(['匯出日期', dateLabel, '', '', '']);
-        aoa.push([]);
-        aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
-        let totalItems=0, totalQty=0;
-        const agg = {};
-        targets.forEach(st=>{
-          keys.forEach(c=>{
-            const it=cart[c];
-            aoa.push([st, dateStr, it.code, it.name, it.qty]);
-            totalItems++; totalQty += it.qty;
-            if(!agg[it.code]) agg[it.code] = {name:it.name, qty:0};
-            agg[it.code].qty += it.qty;
-          });
-        });
-        aoa.push([]);
-        aoa.push(['品項合計（跨門市）', '', '', '', '']);
-        aoa.push(['品項編碼','品項名稱[規格]','合計數量','','']);
-        Object.keys(agg).forEach(code=>aoa.push([code, agg[code].name, agg[code].qty, '', '']));
-        aoa.push([]);
-        aoa.push(['總門市數', targets.length, '', '', '']);
-        aoa.push(['總品項數', totalItems, '', '', '']);
-        aoa.push(['總數量', totalQty, '', '', '']);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, mkMerges(mkCols(XLSX.utils.aoa_to_sheet(aoa)),2), '總表');
-        targets.forEach(st=>{
-          const arr = [];
-          arr.push(['門市叫貨單', '', '', '', '']);
-          arr.push(['門市', st, '', '', '']);
-          arr.push(['日期', dateLabel, '', '', '']);
-          arr.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
-          keys.forEach(c=>{ const it=cart[c]; arr.push([st, dateStr, it.code, it.name, it.qty]); });
-          arr.push([]);
-          arr.push(['總品項數', keys.length, '', '', '']);
-          arr.push(['合計數量', keys.reduce((a,c)=>a+cart[c].qty,0), '', '', '']);
-          XLSX.utils.book_append_sheet(wb, mkMerges(mkCols(XLSX.utils.aoa_to_sheet(arr)),3), String(st).slice(0,31));
-        });
+    ensureExcelJS(async ()=>{
+      try{
+        const storesData = targets.map(st=>({
+          store: st,
+          dateLabel,
+          cart: Object.fromEntries(keys.map(c=>[c, {code:cart[c].code, name:cart[c].name, qty:cart[c].qty}]))
+        }));
+        const wb = buildStoreImageWorkbook({summaryName:targets.length > 1 ? '總表' : '叫貨單', title:targets.length > 1 ? '門市叫貨總表' : '門市叫貨單', exportDateLabel:dateLabel, storesData, includeStoreSheets:targets.length > 1});
+        const buf = await wb.xlsx.writeBuffer();
         saveCart();
-        saveXLSX(wb, `叫貨單-多店-${ds}.xlsx`);
-      };
-      ensureExcelJS(async ()=>{
-        try{
-          const storesData = targets.map(st=>({
-            store: st,
-            dateLabel,
-            cart: Object.fromEntries(keys.map(c=>[c, {code:cart[c].code, name:cart[c].name, qty:cart[c].qty}]))
-          }));
-          const wb = buildStoreImageWorkbook({summaryName:'總表', title:'門市叫貨總表', exportDateLabel:dateLabel, storesData, includeStoreSheets:true});
-          const buf = await wb.xlsx.writeBuffer();
-          saveCart();
-          downloadBlob(new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), `叫貨單-多店-${ds}.xlsx`);
-        }catch(e){
-          console.error(e);
-          buildClassic();
-          alert('水彩代表圖 Excel 匯出失敗，已改用一般 Excel。');
-        }
-      }, buildClassic);
-    } else {
-      const buildClassicSingle = ()=>{
-        const aoa = [];
-        aoa.push(['門市叫貨單', '', '', '', '']);
-        aoa.push(['門市', targets[0], '', '', '']);
-        aoa.push(['日期', dateLabel, '', '', '']);
-        aoa.push(['門市','日期','品項編碼','品項名稱[規格]','數量']);
-        keys.forEach(c=>{ const it=cart[c]; aoa.push([targets[0], dateStr, it.code, it.name, it.qty]); });
-        aoa.push([]);
-        aoa.push(['總品項數', keys.length, '', '', '']);
-        aoa.push(['合計數量', keys.reduce((a,c)=>a+cart[c].qty,0), '', '', '']);
-        const ws = XLSX.utils.aoa_to_sheet(aoa);
-        ws['!cols'] = [{wch:8},{wch:12},{wch:14},{wch:48},{wch:10}];
-        ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}},{s:{r:2,c:0},e:{r:2,c:4}}];
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, '叫貨單');
-        saveXLSX(wb, `叫貨單-${targets[0]}-${ds}.xlsx`);
-      };
-      ensureExcelJS(async ()=>{
-        try{
-          const storesData = [{
-            store: targets[0],
-            dateLabel,
-            cart: Object.fromEntries(keys.map(c=>[c, {code:cart[c].code, name:cart[c].name, qty:cart[c].qty}]))
-          }];
-          const wb = buildStoreImageWorkbook({summaryName:'叫貨單', title:'門市叫貨單', exportDateLabel:dateLabel, storesData, includeStoreSheets:false});
-          const buf = await wb.xlsx.writeBuffer();
-          downloadBlob(new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), `叫貨單-${targets[0]}-${ds}.xlsx`);
-        }catch(e){
-          console.error(e);
-          buildClassicSingle();
-          alert('門市代表圖 Excel 匯出失敗，已改用一般 Excel。');
-        }
-      }, buildClassicSingle);
-    }
-  }, ()=>{ exportCSV(); });
+        downloadBlob(new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), targets.length > 1 ? `叫貨單-多店-${ds}.xlsx` : `叫貨單-${targets[0]}-${ds}.xlsx`);
+        resolve(true);
+      }catch(e){
+        console.error(e);
+        alert('圖片版 Excel 匯出失敗，這次不再改成無圖片版本。請重新整理後再試；若仍失敗，再告訴我。');
+        resolve(false);
+      }
+    }, ()=>resolve(false));
+  });
 }
 
 /* ================= 合併匯出 ================= */
