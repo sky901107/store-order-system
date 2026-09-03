@@ -1609,7 +1609,7 @@ function xlMergeLabel(ws, range, text, fill, fontOpts, alignOpts){
 function addStoreCardBlock(wb, ws, rowNo, store, dateLabel, cartObj){
   const stats = getCartStats(cartObj);
   const cardBorder = xlCardBorder();
-  ws.getRow(rowNo).height = 84;
+  ws.getRow(rowNo).height = 30;
   ws.getRow(rowNo+1).height = 30;
   ws.getRow(rowNo+2).height = 30;
   ws.getRow(rowNo+3).height = 12;
@@ -1621,7 +1621,7 @@ function addStoreCardBlock(wb, ws, rowNo, store, dateLabel, cartObj){
   if(STORE_IMG[store]){
     const ext = STORE_IMG[store].startsWith('data:image/png') ? 'png' : 'jpeg';
     const imgId = wb.addImage({base64: STORE_IMG[store], extension: ext});
-    ws.addImage(imgId, {tl:{col:0.18,row:rowNo-1+0.12}, ext:{width:82,height:82}, editAs:'oneCell'});
+    ws.addImage(imgId, `A${rowNo}:B${rowNo+2}`);
   }
   xlMergeLabel(ws, `C${rowNo}:E${rowNo}`, `門市：${store}`, 'FFF7E4E1', {bold:true, size:14, color:{argb:'FFC8322E'}}, {horizontal:'left'});
   xlMergeLabel(ws, `C${rowNo+1}:E${rowNo+1}`, `叫貨日期：${dateLabel}`, 'FFF3EEE1', {bold:true, size:11}, {horizontal:'left'});
