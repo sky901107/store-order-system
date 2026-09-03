@@ -274,7 +274,10 @@ input{font-family:inherit}
 .vendor-qtybox{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2)}
 .vendor-qtybox input{width:62px;padding:6px 6px;border:1.5px solid var(--line);border-radius:8px;font-size:14px;font-weight:700;text-align:center;background:#fff;color:var(--ink)}
 .vendor-qtybox input:focus{border-color:var(--red);outline:none}
-.vendor-auth-note{font-size:12px;color:var(--ink-3)}
+.vendor-launch{margin:10px 0 14px}
+.vendor-auth-note{font-size:12px;color:var(--ink-3);margin-top:8px}
+.vendor-lookup-box input{width:100%;padding:13px 16px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);font-size:15px;outline:none;transition:border-color .15s}
+.vendor-lookup-box input:focus{border-color:var(--red)}
 .pw-input{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);font-size:16px;outline:none;letter-spacing:2px;text-align:center;margin:8px 0 10px}
 .pw-input:focus{border-color:var(--red)}
 .pw-error{font-size:12px;color:var(--red);min-height:18px;margin-bottom:8px}
@@ -552,19 +555,10 @@ input{font-family:inherit}
   <div class="searchbox">
     <input id="searchInput" type="search" placeholder="搜尋品項名稱或編號…" oninput="onSearch(this.value)">
     <div class="hint">可輸入品項名稱關鍵字或編號（如「小泡芙」或「35619」）</div>
-    <div class="search-actions">
-      <button class="btn btn-ghost" onclick="queryVendors()">🔎 查詢廠商（需密碼）</button>
-    </div>
-    <div class="vendor-panel" id="vendorPanel">
-      <div class="vendor-head">
-        <div>
-          <div class="vendor-title">對應廠商查詢結果</div>
-          <div class="vendor-sub" id="vendorSub"></div>
-        </div>
-        <button class="vendor-close" onclick="closeVendorPanel()">關閉</button>
-      </div>
-      <div class="vendor-list" id="vendorList"></div>
-    </div>
+  </div>
+  <div class="vendor-launch">
+    <button class="btn btn-ghost" style="width:100%" onclick="queryVendors()">🔐 廠商／品項對應查詢</button>
+    <div class="vendor-auth-note">一般搜尋只保留品項關鍵字與品號查詢；輸入密碼後會開啟獨立的廠商查詢搜尋欄。</div>
   </div>
 <div class="modal-back" id="vendorAuthModal" onclick="if(event.target===this)closeVendorAuth()">
   <div class="modal">
@@ -576,6 +570,23 @@ input{font-family:inherit}
       <button class="btn btn-ghost" onclick="closeVendorAuth()">取消</button>
       <button class="btn btn-primary" onclick="submitVendorPassword()">確認</button>
     </div>
+  </div>
+</div>
+<div class="modal-back" id="vendorLookupModal" onclick="if(event.target===this)closeVendorLookup()">
+  <div class="modal">
+    <h3>廠商／品項對應查詢</h3>
+    <div class="import-hint">可輸入品項關鍵字或品號，查詢對應廠商；也可點選廠商反查全部品項並加入叫貨清單。</div>
+    <div class="vendor-lookup-box">
+      <input id="vendorSearchInput" type="search" placeholder="搜尋品項關鍵字或品號…" oninput="onVendorSearch(this.value)">
+    </div>
+    <div class="vendor-head" style="margin-top:12px">
+      <div>
+        <div class="vendor-title">對應廠商查詢結果</div>
+        <div class="vendor-sub" id="vendorSub">請先輸入品項關鍵字或品號。</div>
+      </div>
+      <button class="vendor-close" onclick="closeVendorLookup()">關閉</button>
+    </div>
+    <div class="vendor-list" id="vendorList"></div>
   </div>
 </div>
   <div class="cats-wrap">
@@ -748,7 +759,7 @@ const STORE_IMG = {"虎尾":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/
 
 const VENDOR_PASSWORD = '8379';
 let vendorAuthorized = false;
-let items=[], customFlags={}, currentStore="", cart={}, searchText="", activeCat="全部", multiStores=[], activeVendor="", activeVendorCats={};
+let items=[], customFlags={}, currentStore="", cart={}, searchText="", activeCat="全部", multiStores=[], activeVendor="", activeVendorCats={}, vendorSearchText="";
 
 /* 系列（品牌）推斷：用於自動分系列 */
 const BRANDS = ["太珍香","盛香珍","愛之味","御茶園","匯竑","多力多滋","金安記","欣益廣","韓國不倒翁","蠟筆小新","十全果醋","維力","卡迪那","奇多","威德","樂事","保力達","味味A","味丹","山米&傑克","百力滋","品客","澎湖灣","韓國樂天","來一客","滿漢大餐","第一石鹼","固力果","茱蒂絲","惠香","萬歲牌","初飲初樂","大哥","大茂","小農","小蜜熊","山味","乃詩","義美","乖乖","可樂果","科學麵","統一","味全","光泉","黑松","可口可樂","雪碧","美粒果","舒跑","純喫茶","原萃","古道","泰山","津津","波卡","華元","聯華","聯夏","金莎","紅牛","立頓","健酪","青島","滬尾","阿華田","維他露","御品","兄弟","五木","好勁道","老協珍","新東陽","旺旺","小美","純粹喝","葉門","崇德發","張君雅","孔雀","可爾必思","生活","伊藤園","麒麟","歐樂","馬玉山","寶礦力","蜜妮","曼秀雷敦","資生堂","花王","獅王","黑人","高露潔","舒酸定","多芬","心動時刻","加倍佳","卡辣姆久","小瓜呆","巧益","地球牌","好麗友","一度贊","阿Q桶麵","台酒","日清","出前一丁","營多","素飄香","蠻牛","康貝特","真露","福伯","國農","崑崎","瑞奇","誠泰","魔爪","北海鱈魚香絲","快車肉乾","老楊","波的多","浪味仙","海太","健達","森永","湖池屋","家樂氏","樂天","皇族","八婆","可口奶滋","有名","呦皮","味覺糖","旺瓜","明治","東方","波樂","爭鮮","阿尼","阿南哥","保興","星太郎","相撲手","泰國魷魚片","奧利奧","零時物語","喜年來","傑可","賀客思","烏龜","野川","輕食時刻","龜田","韓尚宮","波蜜","芭達椰","紅牌","海尼根","麥香","舒味思","維大力","濟公","大瑪","鹿港麵線","自然の顏","百濟","韓國百濟","蘋果西打","奧利多水","原味本舖","原味本鋪","鮮剖","老虎牙子","美研社","百事可樂","百威啤酒","雙響泡","和豐麵廠","茉莉茶園","洪元記","康利","永發","玉井","企打","好圈子","珍珍","福味","霹靂","流心蛋酥","名屋","布朗","芙莉雅","時刻食客","健康日誌","甜麥仁","歐拉歌夢","長崎蛋糕","十全","曼仕德","喬亞","開喜","福樂","維他露","波力","波麗露","魔芋寶寶","魔芋爽","蝦味先","鵪鶉蛋","珍四鮮","零食物語","一日三餐","大補帖","金門","正合味","古卡","快樂杯","每日堅果","利稻","參式","益口薯片","薯片先生","蔬菜棒","酥脆","小煎餅","波樂","檸檬塔","蜜黑棗","辣芒果","辣橄欖","蔬纖生","衛龍","雷蒙德","廣川","葳琦","湖池屋","珍珍","醫生","惠香","新動","鼎泰豐","台糖","鮮乳坊","統一陽光","茶裏王","御茶園","美國","7-11","city","可爾必思","午後の紅茶","麒麟一番榨"];
@@ -857,7 +868,7 @@ function selectStore(name){
 }
 
 /* ================= 叫貨 ================= */
-function onSearch(v){ searchText=v; if(!searchText.trim()){ activeVendor=''; activeVendorCats={}; } renderOrder(); }
+function onSearch(v){ searchText=v; renderOrder(); }
 function openVendorAuth(){
   const modal = document.getElementById('vendorAuthModal');
   const input = document.getElementById('vendorPwInput');
@@ -874,6 +885,22 @@ function closeVendorAuth(){
   if(err) err.textContent='';
   if(modal) modal.classList.remove('open');
 }
+function openVendorLookup(prefill){
+  const modal = document.getElementById('vendorLookupModal');
+  const input = document.getElementById('vendorSearchInput');
+  activeVendor = '';
+  activeVendorCats = {};
+  vendorSearchText = typeof prefill === 'string' ? prefill : (vendorSearchText || '');
+  if(input){ input.value = vendorSearchText; setTimeout(()=>input.focus(), 60); }
+  renderVendorLookup();
+  if(modal) modal.classList.add('open');
+}
+function closeVendorLookup(){
+  activeVendor = '';
+  activeVendorCats = {};
+  const modal = document.getElementById('vendorLookupModal');
+  if(modal) modal.classList.remove('open');
+}
 function submitVendorPassword(){
   const input = document.getElementById('vendorPwInput');
   const err = document.getElementById('vendorPwError');
@@ -881,57 +908,54 @@ function submitVendorPassword(){
   if(v === VENDOR_PASSWORD){
     vendorAuthorized = true;
     closeVendorAuth();
-    queryVendors();
+    openVendorLookup(searchText || '');
     return;
   }
   if(err) err.textContent = '密碼錯誤，請重新輸入。';
   if(input){ input.focus(); input.select(); }
 }
-function closeVendorPanel(){
-  activeVendor = '';
-  activeVendorCats = {};
-  const panel = document.getElementById('vendorPanel');
-  if(panel) panel.classList.remove('open');
-}
+function closeVendorPanel(){ closeVendorLookup(); }
 function escAttr(v){
   return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 }
+function onVendorSearch(v){
+  vendorSearchText = v;
+  activeVendor = '';
+  activeVendorCats = {};
+  renderVendorLookup();
+}
 function findVendorRowsByKeyword(){
-  const kw = searchText.trim().toLowerCase();
+  const kw = vendorSearchText.trim().toLowerCase();
   return items.filter(it => kw && (it.code.toLowerCase().includes(kw) || it.name.toLowerCase().includes(kw)));
 }
 function renderVendorSearchResults(rows){
-  const listEl = document.getElementById('vendorList');
   return rows.slice(0,80).map(it=>{
     const vendors = ITEM_VENDORS[it.code] || [];
     return `<div class="vendor-item"><div class="top"><div><div class="code">${it.code}</div><div class="name">${it.name}</div></div></div><div class="vendor-tags">${vendors.length ? vendors.map(v=>`<button type="button" class="vendor-tag vendor-tag-btn" data-vendor="${escAttr(v)}" onclick="traceVendor(this.dataset.vendor)">${v}</button>`).join('') : '<span class="vendor-tag" style="background:var(--paper);color:var(--ink-3);border-color:var(--line)">未填廠商</span>'}</div></div>`;
   }).join('') + (rows.length>80 ? '<div class="vendor-empty">結果較多，僅先顯示前 80 項，請輸入更精準關鍵字。</div>' : '');
 }
-function queryVendors(){
-  if(!vendorAuthorized){ openVendorAuth(); return; }
-  activeVendor = '';
-  activeVendorCats = {};
+function renderVendorLookup(){
   const rows = findVendorRowsByKeyword();
   const listEl = document.getElementById('vendorList');
   const subEl = document.getElementById('vendorSub');
-  const panel = document.getElementById('vendorPanel');
-  if(!listEl || !subEl || !panel) return;
-  const kw = searchText.trim();
+  if(!listEl || !subEl) return;
+  const kw = vendorSearchText.trim();
   if(!kw){
-    subEl.textContent = '請先輸入品項關鍵字或編號再查詢。';
-    listEl.innerHTML = '<div class="vendor-empty">請先在上方搜尋框輸入品項關鍵字或編號。</div>';
-    panel.classList.add('open');
+    subEl.textContent = '請先輸入品項關鍵字或品號再查詢。';
+    listEl.innerHTML = '<div class="vendor-empty">請先在這個獨立搜尋欄輸入品項關鍵字或品號。</div>';
     return;
   }
   if(!rows.length){
-    subEl.textContent = `關鍵字：${searchText}`;
+    subEl.textContent = `關鍵字：${vendorSearchText}`;
     listEl.innerHTML = '<div class="vendor-empty">查無符合品項，因此沒有可顯示的廠商資料。</div>';
-    panel.classList.add('open');
     return;
   }
-  subEl.textContent = `關鍵字：${searchText}｜符合 ${rows.length} 項｜點廠商可反查全部品項`;
+  subEl.textContent = `關鍵字：${vendorSearchText}｜符合 ${rows.length} 項｜點廠商可反查全部品項`;
   listEl.innerHTML = renderVendorSearchResults(rows);
-  panel.classList.add('open');
+}
+function queryVendors(){
+  if(!vendorAuthorized){ openVendorAuth(); return; }
+  openVendorLookup(searchText || '');
 }
 function renderVendorTraceList(vendor, rows){
   const byCat = {};
@@ -958,8 +982,8 @@ function traceVendor(vendor){
   activeVendor = vendor;
   const listEl = document.getElementById('vendorList');
   const subEl = document.getElementById('vendorSub');
-  const panel = document.getElementById('vendorPanel');
-  if(!listEl || !subEl || !panel) return;
+  const modal = document.getElementById('vendorLookupModal');
+  if(!listEl || !subEl || !modal) return;
   const rows = items.filter(it => (ITEM_VENDORS[it.code] || []).includes(vendor));
   const cats = [...new Set(rows.map(it=>it.cat || '其他'))];
   if(vendorChanged || !Object.keys(activeVendorCats).length){
@@ -970,7 +994,7 @@ function traceVendor(vendor){
   }
   subEl.textContent = `廠商：${vendor}｜共 ${rows.length} 項｜可收合分類並直接加入叫貨清單`;
   listEl.innerHTML = rows.length ? renderVendorTraceList(vendor, rows) : '<div class="vendor-empty">此廠商目前沒有可顯示的品項。</div>';
-  panel.classList.add('open');
+  modal.classList.add('open');
 }
 function setLookupCartItem(code, qtyVal){
   const it = items.find(i=>i.code===code);
