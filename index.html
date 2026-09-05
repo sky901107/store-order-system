@@ -404,6 +404,14 @@ body.vendor-resizing{cursor:ew-resize;user-select:none}
 .fab:active{transform:scale(.94)}
 
 /* ===== Review ===== */
+.review-hero{margin:2px 0 14px}
+.btn-hero{
+  width:100%;padding:18px 16px;font-size:18px;font-weight:800;border-radius:16px;
+  color:#fff;background:linear-gradient(135deg,#c8322e,#e07a3f);
+  box-shadow:0 6px 18px rgba(200,50,46,.28);letter-spacing:1px;display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn-hero:hover{filter:brightness(1.05);transform:translateY(-1px)}
+.btn-hero:active{transform:scale(.97)}
 .summary{
   display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:4px 0 16px;
 }
@@ -652,15 +660,15 @@ body.vendor-resizing{cursor:ew-resize;user-select:none}
     <button class="back" onclick="goHome()">回主頁</button>
   </div>
   <div class="mdiff-bar" id="mdiffBarReview" style="display:none"></div>
+  <div class="review-hero">
+    <button class="btn btn-hero" onclick="confirmAndExportOrder()">✅ 確認並匯出EXCEL總表</button>
+  </div>
   <div class="summary">
     <div class="sum-card"><div class="v" id="sumItems">0</div><div class="l">總品項數</div></div>
     <div class="sum-card"><div class="v" id="sumQty">0</div><div class="l">總數量</div></div>
   </div>
   <div class="rv-list" id="reviewList"></div>
   <div class="review-actions">
-    <div class="review-primary-actions">
-      <button class="btn btn-primary" onclick="confirmAndExportOrder()">✅ 確認並匯出EXCEL總表</button>
-    </div>
     <button class="btn btn-ghost" onclick="goHome()">回主頁</button>
     <button class="btn btn-ghost" onclick="clearCart()">清除叫貨</button>
   </div>
