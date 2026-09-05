@@ -363,6 +363,15 @@ body.vendor-resizing{cursor:ew-resize;user-select:none}
 .qty-input{-moz-appearance:textfield}
 .empty{text-align:center;color:var(--ink-3);padding:44px 0;font-size:14px}
 
+/* 多店不同品項 */
+.mdiff-bar{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin-bottom:6px;scrollbar-width:thin;scrollbar-color:var(--gold) transparent}
+.mdiff-chip{flex:none;padding:9px 14px;border-radius:20px;background:var(--card);border:1.5px solid var(--line);font-size:13.5px;font-weight:700;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.mdiff-chip .c{font-size:11px;opacity:.8;margin-left:4px}
+.mdiff-chip.active{background:var(--red);border-color:var(--red);color:#fff}
+.diff-store-row{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--paper);margin-bottom:8px}
+.diff-store-row input{width:18px;height:18px;accent-color:var(--red)}
+.diff-store-row .dn{flex:1;font-weight:700;font-size:14px}
+.diff-store-row .dc{font-size:12px;color:var(--ink-3)}
 /* Sticky action bar */
 .actionbar{
   position:fixed;left:0;right:0;bottom:0;z-index:35;background:rgba(255,253,247,.92);
@@ -552,6 +561,7 @@ body.vendor-resizing{cursor:ew-resize;user-select:none}
   </div>
   <div class="merge-export">
     <button class="btn btn-ghost" style="margin-top:10px" onclick="openQr()">🔗 掃碼叫貨（QR Code）</button>
+    <button class="btn btn-ghost" style="margin-top:10px" onclick="openDiffSelect()">🏬 多店不同品項叫貨</button>
     <button class="btn btn-ghost" style="margin-top:10px" onclick="openHist()">📜 歷程記錄</button>
     <button class="btn btn-danger" style="margin-top:10px" onclick="clearAllCarts()">🗑 一鍵清除所有品項</button>
   </div>
@@ -561,12 +571,26 @@ body.vendor-resizing{cursor:ew-resize;user-select:none}
   </div>
 </div>
 
+<!-- 多店不同品項 選店 -->
+<div class="modal-back" id="diffSelectModal" onclick="if(event.target===this)closeDiffSelect()">
+  <div class="modal">
+    <h3>多店不同品項叫貨</h3>
+    <div class="import-hint">勾選多間門市，之後可逐間為每間門市選取各自需要的品項，各自獨立儲存。</div>
+    <div id="diffStoreList" style="max-height:46vh;overflow-y:auto;margin-bottom:12px"></div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeDiffSelect()">取消</button>
+      <button class="btn btn-primary" onclick="confirmDiffSelect()">開始叫貨 →</button>
+    </div>
+  </div>
+</div>
+
 <!-- 叫貨 -->
 <div id="screen-order" class="screen">
   <div class="subbar">
     <button class="back" onclick="goHome()">← 回主頁</button>
     <h2 id="orderStoreName" class="serif"></h2>
   </div>
+  <div class="mdiff-bar" id="mdiffBar" style="display:none"></div>
   <div class="searchbox">
     <input id="searchInput" type="search" placeholder="搜尋品項名稱或編號…" oninput="onSearch(this.value)">
     <div class="hint">可輸入品項名稱關鍵字或編號（如「小泡芙」或「35619」）</div>
@@ -627,6 +651,7 @@ body.vendor-resizing{cursor:ew-resize;user-select:none}
     <h2 id="reviewStoreName" class="serif"></h2>
     <button class="back" onclick="goHome()">回主頁</button>
   </div>
+  <div class="mdiff-bar" id="mdiffBarReview" style="display:none"></div>
   <div class="summary">
     <div class="sum-card"><div class="v" id="sumItems">0</div><div class="l">總品項數</div></div>
     <div class="sum-card"><div class="v" id="sumQty">0</div><div class="l">總數量</div></div>
@@ -777,7 +802,7 @@ const STORE_IMG = {"虎尾":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/
 const VENDOR_PASSWORD = '8379';
 const LS_VENDOR_PANEL_W = 'ims_vendor_panel_width_v1';
 let vendorAuthorized = false, vendorPanelWidth = 540;
-let items=[], customFlags={}, currentStore="", cart={}, searchText="", activeCat="全部", multiStores=[], activeVendor="", activeVendorCats={}, vendorSearchText="";
+let items=[], customFlags={}, currentStore="", cart={}, searchText="", activeCat="全部", multiStores=[], activeVendor="", activeVendorCats={}, vendorSearchText="", multiDiffStores=[], multiDiffIndex=0;
 
 /* 系列（品牌）推斷：用於自動分系列 */
 const BRANDS = ["太珍香","盛香珍","愛之味","御茶園","匯竑","多力多滋","金安記","欣益廣","韓國不倒翁","蠟筆小新","十全果醋","維力","卡迪那","奇多","威德","樂事","保力達","味味A","味丹","山米&傑克","百力滋","品客","澎湖灣","韓國樂天","來一客","滿漢大餐","第一石鹼","固力果","茱蒂絲","惠香","萬歲牌","初飲初樂","大哥","大茂","小農","小蜜熊","山味","乃詩","義美","乖乖","可樂果","科學麵","統一","味全","光泉","黑松","可口可樂","雪碧","美粒果","舒跑","純喫茶","原萃","古道","泰山","津津","波卡","華元","聯華","聯夏","金莎","紅牛","立頓","健酪","青島","滬尾","阿華田","維他露","御品","兄弟","五木","好勁道","老協珍","新東陽","旺旺","小美","純粹喝","葉門","崇德發","張君雅","孔雀","可爾必思","生活","伊藤園","麒麟","歐樂","馬玉山","寶礦力","蜜妮","曼秀雷敦","資生堂","花王","獅王","黑人","高露潔","舒酸定","多芬","心動時刻","加倍佳","卡辣姆久","小瓜呆","巧益","地球牌","好麗友","一度贊","阿Q桶麵","台酒","日清","出前一丁","營多","素飄香","蠻牛","康貝特","真露","福伯","國農","崑崎","瑞奇","誠泰","魔爪","北海鱈魚香絲","快車肉乾","老楊","波的多","浪味仙","海太","健達","森永","湖池屋","家樂氏","樂天","皇族","八婆","可口奶滋","有名","呦皮","味覺糖","旺瓜","明治","東方","波樂","爭鮮","阿尼","阿南哥","保興","星太郎","相撲手","泰國魷魚片","奧利奧","零時物語","喜年來","傑可","賀客思","烏龜","野川","輕食時刻","龜田","韓尚宮","波蜜","芭達椰","紅牌","海尼根","麥香","舒味思","維大力","濟公","大瑪","鹿港麵線","自然の顏","百濟","韓國百濟","蘋果西打","奧利多水","原味本舖","原味本鋪","鮮剖","老虎牙子","美研社","百事可樂","百威啤酒","雙響泡","和豐麵廠","茉莉茶園","洪元記","康利","永發","玉井","企打","好圈子","珍珍","福味","霹靂","流心蛋酥","名屋","布朗","芙莉雅","時刻食客","健康日誌","甜麥仁","歐拉歌夢","長崎蛋糕","十全","曼仕德","喬亞","開喜","福樂","維他露","波力","波麗露","魔芋寶寶","魔芋爽","蝦味先","鵪鶉蛋","珍四鮮","零食物語","一日三餐","大補帖","金門","正合味","古卡","快樂杯","每日堅果","利稻","參式","益口薯片","薯片先生","蔬菜棒","酥脆","小煎餅","波樂","檸檬塔","蜜黑棗","辣芒果","辣橄欖","蔬纖生","衛龍","雷蒙德","廣川","葳琦","湖池屋","珍珍","醫生","惠香","新動","鼎泰豐","台糖","鮮乳坊","統一陽光","茶裏王","御茶園","美國","7-11","city","可爾必思","午後の紅茶","麒麟一番榨"];
@@ -815,6 +840,7 @@ function loadState(){
 function saveItems(){ localStorage.setItem(LS_ITEMS, JSON.stringify(items)); }
 function saveCustom(){ localStorage.setItem(LS_CUSTOM, JSON.stringify(customFlags)); }
 function loadCart(){ try{ cart = JSON.parse(localStorage.getItem(LS_CART+currentStore)) || {}; }catch(e){ cart={}; } }
+function loadStoreCart(st){ try{ return JSON.parse(localStorage.getItem(LS_CART+st)) || {}; }catch(e){ return {}; } }
 function saveCart(){
   if(multiStores.length){
     multiStores.forEach(st=>localStorage.setItem(LS_CART+st, JSON.stringify(cart)));
@@ -868,8 +894,49 @@ function updateMultiBar(){
     bar.style.display = 'none';
   }
 }
+function openDiffSelect(){
+  const list = document.getElementById('diffStoreList');
+  if(!list) return;
+  list.innerHTML = STORES.map(s=>{
+    const n = Object.keys(loadStoreCart(s)).length;
+    return `<label class="diff-store-row"><input type="checkbox" value="${s}"><span class="dn">${s}</span><span class="dc">${n>0?`已有 ${n} 項`:'尚未叫貨'}</span></label>`;
+  }).join('');
+  document.getElementById('diffSelectModal').classList.add('open');
+}
+function closeDiffSelect(){ document.getElementById('diffSelectModal').classList.remove('open'); }
+function confirmDiffSelect(){
+  const sel = [...document.querySelectorAll('#diffStoreList input:checked')].map(i=>i.value);
+  if(!sel.length){ alert('請至少勾選一間門市。'); return; }
+  multiDiffStores = sel;
+  multiDiffIndex = 0;
+  multiStores = [];
+  currentStore = sel[0];
+  localStorage.setItem(LS_CUR, sel[0]);
+  searchText = '';
+  activeCat = '全部';
+  loadCart();
+  closeDiffSelect();
+  renderOrder();
+  show('screen-order');
+}
+function renderMDiffChips(){
+  return multiDiffStores.map((st,i)=>{
+    const n = Object.keys(loadStoreCart(st)).length;
+    return `<button class="mdiff-chip ${i===multiDiffIndex?'active':''}" onclick="switchDiffStore(${i})">${st}<span class="c">${n} 項</span></button>`;
+  }).join('');
+}
+function switchDiffStore(i){
+  if(i===multiDiffIndex) return;
+  saveCart();
+  multiDiffIndex = i;
+  currentStore = multiDiffStores[i];
+  loadCart();
+  const active = document.querySelector('.screen.active');
+  if(active && active.id==='screen-review') renderReview(); else renderOrder();
+}
 function goMulti(){
   if(!multiStores.length){ alert('請先勾選至少一間門市。'); return; }
+  multiDiffStores = []; multiDiffIndex = 0;
   currentStore = '';
   cart = {};
   saveCart();
@@ -878,6 +945,7 @@ function goMulti(){
 }
 function selectStore(name){
   multiStores = [];
+  multiDiffStores = []; multiDiffIndex = 0;
   currentStore = name;
   localStorage.setItem(LS_CUR, name);
   loadCart();
@@ -1150,7 +1218,10 @@ function itemRowHTML(it){
   </div>`;
 }
 function renderOrder(){
-  document.getElementById('orderStoreName').textContent = multiStores.length ? `多店（${multiStores.join('、')}）` : currentStore;
+  const diffMode = multiDiffStores.length > 0;
+  document.getElementById('orderStoreName').textContent = diffMode ? `多店不同品項（${multiDiffIndex+1}/${multiDiffStores.length}）${multiDiffStores[multiDiffIndex]}` : (multiStores.length ? `多店（${multiStores.join('、')}）` : currentStore);
+  const mb = document.getElementById('mdiffBar');
+  if(mb){ mb.style.display = diffMode ? 'flex' : 'none'; mb.innerHTML = diffMode ? renderMDiffChips() : ''; }
   renderCats();
   const banner = document.getElementById('catBanner');
   if(activeCat === '全部'){
@@ -1262,11 +1333,15 @@ function updateBar(){
 
 /* ================= 確認 ================= */
 function goReview(){
-  if(!Object.keys(cart).length){ alert('尚未勾選任何品項。'); return; }
+  const hasAny = multiDiffStores.length ? multiDiffStores.some(st=>Object.keys(loadStoreCart(st)).length>0) : Object.keys(cart).length>0;
+  if(!hasAny){ alert('尚未勾選任何品項。'); return; }
   renderReview(); show('screen-review');
 }
 function renderReview(){
-  document.getElementById('reviewStoreName').textContent = multiStores.length ? `多店（${multiStores.join('、')}）` : currentStore;
+  const diffMode = multiDiffStores.length > 0;
+  document.getElementById('reviewStoreName').textContent = diffMode ? `多店不同品項（${multiDiffIndex+1}/${multiDiffStores.length}）${multiDiffStores[multiDiffIndex]}` : (multiStores.length ? `多店（${multiStores.join('、')}）` : currentStore);
+  const mb = document.getElementById('mdiffBarReview');
+  if(mb){ mb.style.display = diffMode ? 'flex' : 'none'; mb.innerHTML = diffMode ? renderMDiffChips() : ''; }
   const keys = Object.keys(cart);
   const list = document.getElementById('reviewList');
   if(!keys.length){
@@ -1312,24 +1387,33 @@ async function confirmAndExportOrder(){
   submitOrder();
 }
 function submitOrder(){
-  const keys = Object.keys(cart);
-  if(!keys.length){ alert('目前沒有叫貨品項。'); return; }
-  const targets = multiStores.length ? multiStores : [currentStore];
+  const targets = multiDiffStores.length ? multiDiffStores : (multiStores.length ? multiStores : [currentStore]);
+  const build = t=>{
+    const c = multiDiffStores.length ? loadStoreCart(t) : cart;
+    const ks = Object.keys(c);
+    return {store:t, c:c, items: ks.map(k=>({code:c[k].code, name:c[k].name, qty:c[k].qty})), totalItems: ks.length, totalQty: ks.reduce((a,k)=>a+Number(c[k].qty||0),0)};
+  };
+  const rows = targets.map(build);
+  if(!rows.some(r=>r.totalItems>0)){ alert('目前沒有叫貨品項。'); return; }
   if(!confirm(`確定送出「${targets.join('、')}」的叫貨單？送出後會同步到各門市並記錄歷程。`)) return;
   const now = new Date();
   const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
   const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  const items = keys.map(c=>({code:cart[c].code, name:cart[c].name, qty:cart[c].qty}));
-  const totalQty = keys.reduce((a,c)=>a+cart[c].qty,0);
-  targets.forEach(t=>{
-    localStorage.setItem(LS_CART+t, JSON.stringify(cart));
+  saveCart();
+  rows.forEach(r=>{
+    localStorage.setItem(LS_CART+r.store, JSON.stringify(r.c));
     const h = loadHistory();
-    h.unshift({id:Date.now()+Math.floor(Math.random()*9999), store:t, date:dateStr, time:timeStr, items:items, totalItems:keys.length, totalQty:totalQty, processed:false});
+    h.unshift({id:Date.now()+Math.floor(Math.random()*9999), store:r.store, date:dateStr, time:timeStr, items:r.items, totalItems:r.totalItems, totalQty:r.totalQty, processed:false});
     saveHistory(h);
   });
-  const doClear = confirm(`✓ 已送出並同步到「${targets.join('、')}」（共 ${targets.length} 個單位，${keys.length} 項／${totalQty} 件），並記錄到歷程！\n\n要清除目前的叫貨清單嗎？`);
-  if(doClear){ cart={}; saveCart(); multiStores=[]; renderHome(); show('screen-home'); }
-  else { renderReview(); }
+  const totalAllItems = rows.reduce((a,r)=>a+r.totalItems,0);
+  const totalAllQty = rows.reduce((a,r)=>a+r.totalQty,0);
+  const doClear = confirm(`✓ 已送出並同步到「${targets.join('、')}」（共 ${targets.length} 個單位，${totalAllItems} 項／${totalAllQty} 件），並記錄到歷程！\n\n要清除目前的叫貨清單嗎？`);
+  if(doClear){
+    targets.forEach(t=>localStorage.removeItem(LS_CART+t));
+    cart={}; multiStores=[]; multiDiffStores=[]; multiDiffIndex=0;
+    renderHome(); show('screen-home');
+  } else { renderReview(); }
 }
 let histKeyword = '';
 function onHistSearch(v){ histKeyword = v; renderHist(); }
@@ -1478,7 +1562,7 @@ function exportHistCSV(){
 }
 
 /* ================= 導覽 ================= */
-function goHome(){ renderHome(); show('screen-home'); }
+function goHome(){ multiDiffStores=[]; multiDiffIndex=0; renderHome(); show('screen-home'); }
 function goOrder(){ renderOrder(); show('screen-order'); }
 
 /* ================= 品項管理 ================= */
@@ -1707,21 +1791,21 @@ function buildStoreImageWorkbook(opts){
 
 /* ================= 匯出 Excel ================= */
 function exportExcel(){
-  const keys = Object.keys(cart);
-  if(!keys.length){ alert('尚未勾選任何品項，無法匯出。'); return Promise.resolve(false); }
   return new Promise((resolve)=>{
     const now = new Date();
     const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
     const week = ['日','一','二','三','四','五','六'][now.getDay()];
     const dateLabel = `${dateStr}（週${week}）`;
-    const targets = multiStores.length ? multiStores : [currentStore];
+    const targets = multiDiffStores.length ? multiDiffStores : (multiStores.length ? multiStores : [currentStore]);
     const ds = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+    if(!targets.some(st=>Object.keys(loadStoreCart(st)).length>0)){ alert('尚未勾選任何品項，無法匯出。'); resolve(false); return; }
     ensureExcelJS(async ()=>{
       try{
+        saveCart();
         const storesData = targets.map(st=>({
           store: st,
           dateLabel,
-          cart: Object.fromEntries(keys.map(c=>[c, {code:cart[c].code, name:cart[c].name, qty:cart[c].qty}]))
+          cart: loadStoreCart(st)
         }));
         const wb = buildStoreImageWorkbook({summaryName:targets.length > 1 ? '總表' : '叫貨單', title:targets.length > 1 ? '門市叫貨總表' : '門市叫貨單', exportDateLabel:dateLabel, storesData, includeStoreSheets:targets.length > 1});
         const buf = await wb.xlsx.writeBuffer();
