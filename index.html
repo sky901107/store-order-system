@@ -687,6 +687,14 @@ body.vendor-resizing{cursor:ew-resize;user-select:none}
     <div class="tab-pane active" id="tab-add">
       <div class="field"><label>品項編碼</label><input id="newCode" placeholder="例如 35619"></div>
       <div class="field"><label>品項名稱［規格］</label><input id="newName" placeholder="例如 義美小泡芙 巧克力57G/包" onblur="autoFillVendor()"></div>
+      <div class="field"><label>品項類別</label><input id="newCat" list="catDatalist" placeholder="輸入或選擇類別（零食類／飲料類／泡麵類／百貨類…）"></div>
+      <datalist id="catDatalist">
+        <option value="零食類"></option>
+        <option value="飲料類"></option>
+        <option value="泡麵類"></option>
+        <option value="百貨類"></option>
+        <option value="其他"></option>
+      </datalist>
       <div class="field"><label>廠商</label><input id="newVendor" list="vendorDatalist" placeholder="輸入廠商名稱，如 施文展（可從清單自動帶入）"></div>
       <datalist id="vendorDatalist"></datalist>
       <div class="form-actions">
@@ -874,6 +882,8 @@ function autoFillVendor(){
   if(hit){
     const vs = vendorsOf(hit.code);
     if(vs.length) vendorEl.value = vs[0];
+    const catEl0 = document.getElementById('newCat');
+    if(catEl0 && !catEl0.value.trim() && hit.cat) catEl0.value = hit.cat;
   }
 }
 function loadCart(){ try{ cart = JSON.parse(localStorage.getItem(LS_CART+currentStore)) || {}; }catch(e){ cart={}; } }
@@ -1620,7 +1630,9 @@ function addItem(){
   const name = document.getElementById('newName').value.trim();
   if(!code || !name){ alert('請輸入品項編碼與名稱。'); return; }
   if(items.some(i=>i.code===code)){ alert('此品項編碼已存在。'); return; }
-  items.push({code:code, name:name, cat:'其他', series:deriveSeries(name)});
+  const catEl = document.getElementById('newCat');
+  const cat = catEl && catEl.value.trim() ? catEl.value.trim() : '其他';
+  items.push({code:code, name:name, cat:cat, series:deriveSeries(name)});
   customFlags[code] = true;
   const vendorEl = document.getElementById('newVendor');
   const vendor = vendorEl ? vendorEl.value.trim() : '';
@@ -1631,9 +1643,10 @@ function addItem(){
   renderCustomList(); renderOrder();
   document.getElementById('newCode').value='';
   document.getElementById('newName').value='';
+  if(catEl) catEl.value='';
   if(vendorEl) vendorEl.value='';
   fillVendorDatalist();
-  alert(`已新增品項：${code} ${name}${vendor ? `（廠商：${vendor}）` : ''}`);
+  alert(`已新增品項：${code} ${name}（類別：${cat}${vendor ? `｜廠商：${vendor}` : ''}）`);
 }
 function delItem(code){
   if(!confirm(`確定刪除品項 ${code}？`)) return;
