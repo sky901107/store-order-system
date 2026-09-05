@@ -678,7 +678,9 @@ body.vendor-resizing{cursor:ew-resize;user-select:none}
 
     <div class="tab-pane active" id="tab-add">
       <div class="field"><label>品項編碼</label><input id="newCode" placeholder="例如 35619"></div>
-      <div class="field"><label>品項名稱［規格］</label><input id="newName" placeholder="例如 義美小泡芙 巧克力57G/包"></div>
+      <div class="field"><label>品項名稱［規格］</label><input id="newName" placeholder="例如 義美小泡芙 巧克力57G/包" onblur="autoFillVendor()"></div>
+      <div class="field"><label>廠商</label><input id="newVendor" list="vendorDatalist" placeholder="輸入廠商名稱，如 施文展（可從清單自動帶入）"></div>
+      <datalist id="vendorDatalist"></datalist>
       <div class="form-actions">
         <button class="btn btn-primary" onclick="addItem()">＋ 新增品項</button>
       </div>
@@ -801,8 +803,9 @@ const STORE_IMG = {"虎尾":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/
 
 const VENDOR_PASSWORD = '8379';
 const LS_VENDOR_PANEL_W = 'ims_vendor_panel_width_v1';
+const LS_VENDORS = 'ims_vendors_v1';
 let vendorAuthorized = false, vendorPanelWidth = 540;
-let items=[], customFlags={}, currentStore="", cart={}, searchText="", activeCat="全部", multiStores=[], activeVendor="", activeVendorCats={}, vendorSearchText="", multiDiffStores=[], multiDiffIndex=0;
+let items=[], customFlags={}, currentStore="", cart={}, searchText="", activeCat="全部", multiStores=[], activeVendor="", activeVendorCats={}, vendorSearchText="", multiDiffStores=[], multiDiffIndex=0, userVendors={};
 
 /* 系列（品牌）推斷：用於自動分系列 */
 const BRANDS = ["太珍香","盛香珍","愛之味","御茶園","匯竑","多力多滋","金安記","欣益廣","韓國不倒翁","蠟筆小新","十全果醋","維力","卡迪那","奇多","威德","樂事","保力達","味味A","味丹","山米&傑克","百力滋","品客","澎湖灣","韓國樂天","來一客","滿漢大餐","第一石鹼","固力果","茱蒂絲","惠香","萬歲牌","初飲初樂","大哥","大茂","小農","小蜜熊","山味","乃詩","義美","乖乖","可樂果","科學麵","統一","味全","光泉","黑松","可口可樂","雪碧","美粒果","舒跑","純喫茶","原萃","古道","泰山","津津","波卡","華元","聯華","聯夏","金莎","紅牛","立頓","健酪","青島","滬尾","阿華田","維他露","御品","兄弟","五木","好勁道","老協珍","新東陽","旺旺","小美","純粹喝","葉門","崇德發","張君雅","孔雀","可爾必思","生活","伊藤園","麒麟","歐樂","馬玉山","寶礦力","蜜妮","曼秀雷敦","資生堂","花王","獅王","黑人","高露潔","舒酸定","多芬","心動時刻","加倍佳","卡辣姆久","小瓜呆","巧益","地球牌","好麗友","一度贊","阿Q桶麵","台酒","日清","出前一丁","營多","素飄香","蠻牛","康貝特","真露","福伯","國農","崑崎","瑞奇","誠泰","魔爪","北海鱈魚香絲","快車肉乾","老楊","波的多","浪味仙","海太","健達","森永","湖池屋","家樂氏","樂天","皇族","八婆","可口奶滋","有名","呦皮","味覺糖","旺瓜","明治","東方","波樂","爭鮮","阿尼","阿南哥","保興","星太郎","相撲手","泰國魷魚片","奧利奧","零時物語","喜年來","傑可","賀客思","烏龜","野川","輕食時刻","龜田","韓尚宮","波蜜","芭達椰","紅牌","海尼根","麥香","舒味思","維大力","濟公","大瑪","鹿港麵線","自然の顏","百濟","韓國百濟","蘋果西打","奧利多水","原味本舖","原味本鋪","鮮剖","老虎牙子","美研社","百事可樂","百威啤酒","雙響泡","和豐麵廠","茉莉茶園","洪元記","康利","永發","玉井","企打","好圈子","珍珍","福味","霹靂","流心蛋酥","名屋","布朗","芙莉雅","時刻食客","健康日誌","甜麥仁","歐拉歌夢","長崎蛋糕","十全","曼仕德","喬亞","開喜","福樂","維他露","波力","波麗露","魔芋寶寶","魔芋爽","蝦味先","鵪鶉蛋","珍四鮮","零食物語","一日三餐","大補帖","金門","正合味","古卡","快樂杯","每日堅果","利稻","參式","益口薯片","薯片先生","蔬菜棒","酥脆","小煎餅","波樂","檸檬塔","蜜黑棗","辣芒果","辣橄欖","蔬纖生","衛龍","雷蒙德","廣川","葳琦","湖池屋","珍珍","醫生","惠香","新動","鼎泰豐","台糖","鮮乳坊","統一陽光","茶裏王","御茶園","美國","7-11","city","可爾必思","午後の紅茶","麒麟一番榨"];
@@ -834,11 +837,37 @@ function loadState(){
   }
   normalizeItems(); saveItems();
   try{ customFlags = JSON.parse(localStorage.getItem(LS_CUSTOM)) || {}; }catch(e){ customFlags={}; }
+  try{ userVendors = JSON.parse(localStorage.getItem(LS_VENDORS)) || {}; }catch(e){ userVendors={}; }
   currentStore = localStorage.getItem(LS_CUR) || "";
   loadCart();
 }
 function saveItems(){ localStorage.setItem(LS_ITEMS, JSON.stringify(items)); }
 function saveCustom(){ localStorage.setItem(LS_CUSTOM, JSON.stringify(customFlags)); }
+function saveVendors(){ localStorage.setItem(LS_VENDORS, JSON.stringify(userVendors)); }
+function vendorsOf(code){
+  return [...new Set([...(ITEM_VENDORS[code]||[]), ...(userVendors[code]||[])])];
+}
+function fillVendorDatalist(){
+  const dl = document.getElementById('vendorDatalist');
+  if(!dl) return;
+  const set = new Set();
+  Object.values(ITEM_VENDORS).forEach(arr=>arr.forEach(v=>set.add(v)));
+  Object.values(userVendors).forEach(arr=>arr.forEach(v=>set.add(v)));
+  dl.innerHTML = [...set].sort().map(v=>`<option value="${escAttr(v)}"></option>`).join('');
+}
+function autoFillVendor(){
+  const nameEl = document.getElementById('newName');
+  const vendorEl = document.getElementById('newVendor');
+  if(!nameEl || !vendorEl) return;
+  if(vendorEl.value.trim()) return;
+  const name = nameEl.value.trim();
+  if(!name) return;
+  const hit = items.find(i=>i.name.toLowerCase()===name.toLowerCase());
+  if(hit){
+    const vs = vendorsOf(hit.code);
+    if(vs.length) vendorEl.value = vs[0];
+  }
+}
 function loadCart(){ try{ cart = JSON.parse(localStorage.getItem(LS_CART+currentStore)) || {}; }catch(e){ cart={}; } }
 function loadStoreCart(st){ try{ return JSON.parse(localStorage.getItem(LS_CART+st)) || {}; }catch(e){ return {}; } }
 function saveCart(){
@@ -1062,7 +1091,7 @@ function findVendorRowsByKeyword(){
 }
 function renderVendorSearchResults(rows){
   return rows.slice(0,80).map(it=>{
-    const vendors = ITEM_VENDORS[it.code] || [];
+    const vendors = vendorsOf(it.code);
     return `<div class="vendor-item"><div class="top"><div><div class="code">${it.code}</div><div class="name">${it.name}</div></div></div><div class="vendor-tags">${vendors.length ? vendors.map(v=>`<button type="button" class="vendor-tag vendor-tag-btn" data-vendor="${escAttr(v)}" onclick="traceVendor(this.dataset.vendor)">${v}</button>`).join('') : '<span class="vendor-tag" style="background:var(--paper);color:var(--ink-3);border-color:var(--line)">未填廠商</span>'}</div></div>`;
   }).join('') + (rows.length>80 ? '<div class="vendor-empty">結果較多，僅先顯示前 80 項，請輸入更精準關鍵字。</div>' : '');
 }
@@ -1116,7 +1145,7 @@ function traceVendor(vendor){
   const subEl = document.getElementById('vendorSub');
   const modal = document.getElementById('vendorLookupModal');
   if(!listEl || !subEl || !modal) return;
-  const rows = items.filter(it => (ITEM_VENDORS[it.code] || []).includes(vendor));
+  const rows = items.filter(it => vendorsOf(it.code).includes(vendor));
   const cats = [...new Set(rows.map(it=>it.cat || '其他'))];
   if(vendorChanged || !Object.keys(activeVendorCats).length){
     activeVendorCats = {};
@@ -1568,6 +1597,7 @@ function goOrder(){ renderOrder(); show('screen-order'); }
 /* ================= 品項管理 ================= */
 function openManage(){
   renderCustomList();
+  fillVendorDatalist();
   document.getElementById('manageModal').classList.add('open');
 }
 function closeManage(){ document.getElementById('manageModal').classList.remove('open'); }
@@ -1584,11 +1614,18 @@ function addItem(){
   if(items.some(i=>i.code===code)){ alert('此品項編碼已存在。'); return; }
   items.push({code:code, name:name, cat:'其他', series:deriveSeries(name)});
   customFlags[code] = true;
-  saveItems(); saveCustom();
+  const vendorEl = document.getElementById('newVendor');
+  const vendor = vendorEl ? vendorEl.value.trim() : '';
+  if(vendor){
+    userVendors[code] = [...new Set([...(userVendors[code]||[]), vendor])];
+  }
+  saveItems(); saveCustom(); saveVendors();
   renderCustomList(); renderOrder();
   document.getElementById('newCode').value='';
   document.getElementById('newName').value='';
-  alert(`已新增品項：${code} ${name}`);
+  if(vendorEl) vendorEl.value='';
+  fillVendorDatalist();
+  alert(`已新增品項：${code} ${name}${vendor ? `（廠商：${vendor}）` : ''}`);
 }
 function delItem(code){
   if(!confirm(`確定刪除品項 ${code}？`)) return;
